@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -625,7 +625,12 @@ int netware_init(void);
 #if defined(USE_SSLEAY) || defined(USE_WINDOWS_SSPI) || \
     defined(USE_GNUTLS) || defined(USE_NSS) || defined(USE_DARWINSSL) || \
     defined(USE_OS400CRYPTO) || defined(USE_WIN32_CRYPTO)
+
+#ifdef HAVE_BORINGSSL /* BoringSSL is not NTLM capable */
+#undef USE_NTLM
+#else
 #define USE_NTLM
+#endif
 #endif
 #endif
 

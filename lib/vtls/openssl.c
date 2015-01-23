@@ -64,6 +64,9 @@
 #include <openssl/md5.h>
 #include <openssl/conf.h>
 #include <openssl/bn.h>
+#ifndef HAVE_BORINGSSL
+#include <openssl/ocsp.h>
+#endif
 #else
 #include <rand.h>
 #include <x509v3.h>
@@ -81,6 +84,10 @@
 #error "OPENSSL_VERSION_NUMBER not defined"
 #endif
 
+#if !defined(SSLEAY_VERSION_NUMBER)
+#define SSLEAY_VERSION_NUMBER OPENSSL_VERSION_NUMBER
+#endif
+
 #if OPENSSL_VERSION_NUMBER >= 0x0090581fL
 #define HAVE_SSL_GET1_SESSION 1
 #else
@@ -93,7 +100,7 @@
 #undef HAVE_USERDATA_IN_PWD_CALLBACK
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x00907001L
+#if OPENSSL_VERSION_NUMBER >= 0x00907001L && !defined(OPENSSL_IS_BORINGSSL)
 /* ENGINE_load_private_key() takes four arguments */
 #define HAVE_ENGINE_LOAD_FOUR_ARGS
 #include <openssl/ui.h>
@@ -102,8 +109,10 @@
 #undef HAVE_ENGINE_LOAD_FOUR_ARGS
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x00903001L) && defined(HAVE_OPENSSL_PKCS12_H)
-/* OpenSSL has PKCS 12 support */
+#if (OPENSSL_VERSION_NUMBER >= 0x00903001L) && \
+    defined(HAVE_OPENSSL_PKCS12_H) && \
+    !defined(OPENSSL_IS_BORINGSSL)
+/* OpenSSL has PKCS 12 support, BoringSSL does not */
 #define HAVE_PKCS12_SUPPORT
 #else
 /* OpenSSL/SSLEay does not have PKCS12 support */
@@ -127,7 +136,10 @@
 #define X509_STORE_set_flags(x,y) Curl_nop_stmt
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10000000L
+#ifdef OPENSSL_IS_BORINGSSL
+/* BoringSSL has no ERR_remove_state() */
+#define ERR_remove_state(x)
+#elif (OPENSSL_VERSION_NUMBER >= 0x10000000L)
 #define HAVE_ERR_REMOVE_THREAD_STATE 1
 #endif
 
@@ -135,6 +147,14 @@
   OPENSSL_VERSION_NUMBER >= 0x10100000L /* 1.1.0+ has no SSLv2 */
 #undef OPENSSL_NO_SSL2 /* undef first to avoid compiler warnings */
 #define OPENSSL_NO_SSL2
+#endif
+
+#if defined(OPENSSL_IS_BORINGSSL)
+#define NO_RAND_SEED 1
+/* In BoringSSL OpenSSL_add_all_algorithms does nothing */
+#define OpenSSL_add_all_algorithms()
+/* BoringSSL does not have CONF_modules_load_file */
+#define CONF_modules_load_file(a,b,c)
 #endif
 
 /*
@@ -177,6 +197,7 @@ static int passwd_callback(char *buf, int num, int encrypting
  * pass in an argument that is never used.
  */
 
+#ifndef NO_RAND_SEED
 #ifdef HAVE_RAND_STATUS
 #define seed_enough(x) rand_enough()
 static bool rand_enough(void)
@@ -261,7 +282,7 @@ static int ossl_seed(struct SessionHandle *data)
   return nread;
 }
 
-static int Curl_ossl_seed(struct SessionHandle *data)
+static void Curl_ossl_seed(struct SessionHandle *data)
 {
   /* we have the "SSL is seeded" boolean static to prevent multiple
      time-consuming seedings in vain */
@@ -272,8 +293,11 @@ static int Curl_ossl_seed(struct SessionHandle *data)
     ossl_seed(data);
     ssl_seeded = TRUE;
   }
-  return 0;
 }
+#else
+/* BoringSSL needs no seeding */
+#define Curl_ossl_seed(x)
+#endif
 
 
 #ifndef SSL_FILETYPE_ENGINE
@@ -756,9 +780,9 @@ int Curl_ossl_init(void)
 #define CONF_MFLAGS_DEFAULT_SECTION 0x0
 #endif
 
-  (void)CONF_modules_load_file(NULL, NULL,
-                               CONF_MFLAGS_DEFAULT_SECTION|
-                               CONF_MFLAGS_IGNORE_MISSING_FILE);
+  CONF_modules_load_file(NULL, NULL,
+                         CONF_MFLAGS_DEFAULT_SECTION|
+                         CONF_MFLAGS_IGNORE_MISSING_FILE);
 
   return 1;
 }
@@ -1298,6 +1322,132 @@ static CURLcode verifyhost(struct connectdata *conn, X509 *server_cert)
 
   return result;
 }
+
+#ifndef HAVE_BORINGSSL
+static CURLcode verifystatus(struct connectdata *conn,
+                             struct ssl_connect_data *connssl)
+{
+  int i, ocsp_status;
+  const unsigned char *p;
+  CURLcode result = CURLE_OK;
+  struct SessionHandle *data = conn->data;
+
+  OCSP_RESPONSE *rsp = NULL;
+  OCSP_BASICRESP *br = NULL;
+  X509_STORE     *st = NULL;
+  STACK_OF(X509) *ch = NULL;
+
+  long len = SSL_get_tlsext_status_ocsp_resp(connssl->handle, &p);
+
+  if(!p) {
+    failf(data, "No OCSP response received");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  rsp = d2i_OCSP_RESPONSE(NULL, &p, len);
+  if(!rsp) {
+    failf(data, "Invalid OCSP response");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  ocsp_status = OCSP_response_status(rsp);
+  if(ocsp_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+    failf(data, "Invalid OCSP response status: %s (%d)",
+          OCSP_response_status_str(ocsp_status), ocsp_status);
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  br = OCSP_response_get1_basic(rsp);
+  if(!br) {
+    failf(data, "Invalid OCSP response");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  ch = SSL_get_peer_cert_chain(connssl->handle);
+  st = SSL_CTX_get_cert_store(connssl->ctx);
+
+  /* The authorized responder cert in the OCSP response MUST be signed by the
+     peer cert's issuer (see RFC6960 section 4.2.2.2). If that's a root cert,
+     no problem, but if it's an intermediate cert OpenSSL has a bug where it
+     expects this issuer to be present in the chain embedded in the OCSP
+     response. So we add it if necessary. */
+
+  /* First make sure the peer cert chain includes both a peer and an issuer,
+     and the OCSP response contains a responder cert. */
+  if(sk_X509_num(ch) >= 2 && sk_X509_num(br->certs) >= 1) {
+    X509 *responder = sk_X509_value(br->certs, sk_X509_num(br->certs) - 1);
+
+    /* Find issuer of responder cert and add it to the OCSP response chain */
+    for(i = 0; i < sk_X509_num(ch); i++) {
+      X509 *issuer = sk_X509_value(ch, i);
+      if(X509_check_issued(issuer, responder) == X509_V_OK) {
+        if(!OCSP_basic_add1_cert(br, issuer)) {
+          failf(data, "Could not add issuer cert to OCSP response");
+          result = CURLE_SSL_INVALIDCERTSTATUS;
+          goto end;
+        }
+      }
+    }
+  }
+
+  if(OCSP_basic_verify(br, ch, st, 0) <= 0) {
+    failf(data, "OCSP response verification failed");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  for(i = 0; i < sk_OCSP_SINGLERESP_num(br->tbsResponseData->responses); i++) {
+    int cert_status, crl_reason;
+    OCSP_SINGLERESP *single = NULL;
+
+    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
+
+    if(!sk_OCSP_SINGLERESP_value(br->tbsResponseData->responses, i))
+      continue;
+
+    single = sk_OCSP_SINGLERESP_value(br->tbsResponseData->responses, i);
+
+    cert_status = OCSP_single_get0_status(single, &crl_reason, &rev,
+                                          &thisupd, &nextupd);
+
+    if(!OCSP_check_validity(thisupd, nextupd, 300L, -1L)) {
+      failf(data, "OCSP response has expired");
+      result = CURLE_SSL_INVALIDCERTSTATUS;
+      goto end;
+    }
+
+    infof(data, "SSL certificate status: %s (%d)\n",
+          OCSP_cert_status_str(cert_status), cert_status);
+
+    switch(cert_status) {
+      case V_OCSP_CERTSTATUS_GOOD:
+        break;
+
+      case V_OCSP_CERTSTATUS_REVOKED:
+        result = CURLE_SSL_INVALIDCERTSTATUS;
+
+        failf(data, "SSL certificate revocation reason: %s (%d)",
+              OCSP_crl_reason_str(crl_reason), crl_reason);
+        goto end;
+
+      case V_OCSP_CERTSTATUS_UNKNOWN:
+        result = CURLE_SSL_INVALIDCERTSTATUS;
+        goto end;
+    }
+  }
+
+end:
+  if(br) OCSP_BASICRESP_free(br);
+  OCSP_RESPONSE_free(rsp);
+
+  return result;
+}
+#endif /* HAVE_BORINGSSL */
+
 #endif /* USE_SSLEAY */
 
 /* The SSL_CTRL_SET_MSG_CALLBACK doesn't exist in ancient OpenSSL versions
@@ -1909,6 +2059,12 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     failf(data, "SSL: couldn't create a context (handle)!");
     return CURLE_OUT_OF_MEMORY;
   }
+
+#ifndef HAVE_BORINGSSL
+  if(data->set.ssl.verifystatus)
+    SSL_set_tlsext_status_type(connssl->handle, TLSEXT_STATUSTYPE_ocsp);
+#endif
+
   SSL_set_connect_state(connssl->handle);
 
   connssl->server_cert = 0x0;
@@ -2592,6 +2748,17 @@ static CURLcode servercert(struct connectdata *conn,
       infof(data, "\t SSL certificate verify ok.\n");
   }
 
+#ifndef HAVE_BORINGSSL
+  if(data->set.ssl.verifystatus) {
+    result = verifystatus(conn, connssl);
+    if(result) {
+      X509_free(connssl->server_cert);
+      connssl->server_cert = NULL;
+      return result;
+    }
+  }
+#endif
+
   if(!strict)
     /* when not strict, we don't bother about the verify cert problems */
     result = CURLE_OK;
@@ -2937,6 +3104,9 @@ size_t Curl_ossl_version(char *buffer, size_t size)
      to OpenSSL in all other aspects */
   return snprintf(buffer, size, "yassl/%s", YASSL_VERSION);
 #else /* YASSL_VERSION */
+#ifdef OPENSSL_IS_BORINGSSL
+  return snprintf(buffer, size, "BoringSSL");
+#else /* OPENSSL_IS_BORINGSSL */
 
 #if(SSLEAY_VERSION_NUMBER >= 0x905000)
   {
@@ -2966,14 +3136,10 @@ size_t Curl_ossl_version(char *buffer, size_t size)
     }
 
     return snprintf(buffer, size, "%s/%lx.%lx.%lx%s",
-#ifdef OPENSSL_IS_BORINGSSL
-                    "BoringSSL"
-#else
 #ifdef LIBRESSL_VERSION_NUMBER
                     "LibreSSL"
 #else
                     "OpenSSL"
-#endif
 #endif
                     , (ssleay_value>>28)&0xf,
                     (ssleay_value>>20)&0xff,
@@ -3007,6 +3173,7 @@ size_t Curl_ossl_version(char *buffer, size_t size)
 #endif /* (SSLEAY_VERSION_NUMBER >= 0x900000) */
 #endif /* SSLEAY_VERSION_NUMBER is less than 0.9.5 */
 
+#endif /* OPENSSL_IS_BORINGSSL */
 #endif /* YASSL_VERSION */
 }
 
@@ -3014,8 +3181,9 @@ size_t Curl_ossl_version(char *buffer, size_t size)
 int Curl_ossl_random(struct SessionHandle *data, unsigned char *entropy,
                      size_t length)
 {
-  if(data)
+  if(data) {
     Curl_ossl_seed(data); /* Initiate the seed if not already done */
+  }
   RAND_bytes(entropy, curlx_uztosi(length));
   return 0; /* 0 as in no problem */
 }
@@ -3030,5 +3198,10 @@ void Curl_ossl_md5sum(unsigned char *tmp, /* input */
   MD5_Init(&MD5pw);
   MD5_Update(&MD5pw, tmp, tmplen);
   MD5_Final(md5sum, &MD5pw);
+}
+
+bool Curl_ossl_cert_status_request(void)
+{
+  return TRUE;
 }
 #endif /* USE_SSLEAY */
