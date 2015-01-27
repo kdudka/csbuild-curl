@@ -133,7 +133,7 @@ const struct Curl_handler Curl_handler_imap = {
   ZERO_NULL,                        /* readwrite */
   PORT_IMAP,                        /* defport */
   CURLPROTO_IMAP,                   /* protocol */
-  PROTOPT_CLOSEACTION | PROTOPT_NEEDSPWD  /* flags */
+  PROTOPT_CLOSEACTION               /* flags */
 };
 
 #ifdef USE_SSL
@@ -158,8 +158,7 @@ const struct Curl_handler Curl_handler_imaps = {
   ZERO_NULL,                        /* readwrite */
   PORT_IMAPS,                       /* defport */
   CURLPROTO_IMAPS,                  /* protocol */
-  PROTOPT_CLOSEACTION | PROTOPT_SSL |
-  PROTOPT_NEEDSPWD                  /* flags */
+  PROTOPT_CLOSEACTION | PROTOPT_SSL /* flags */
 };
 #endif
 
@@ -612,9 +611,9 @@ static CURLcode imap_perform_authentication(struct connectdata *conn)
   struct imap_conn *imapc = &conn->proto.imapc;
   saslprogress progress;
 
-  /* Check we have a username and password to authenticate with and end the
+  /* Check we have enough data to authenticate with and end the
      connect phase if we don't */
-  if(!conn->bits.user_passwd) {
+  if(!Curl_sasl_can_authenticate(&imapc->sasl, conn)) {
     state(conn, IMAP_STOP);
     return result;
   }
@@ -1962,7 +1961,7 @@ static CURLcode imap_parse_url_options(struct connectdata *conn)
   case SASL_AUTH_NONE:
     imapc->preftype = IMAP_TYPE_NONE;
     break;
-  case SASL_AUTH_ANY:
+  case SASL_AUTH_DEFAULT:
     imapc->preftype = IMAP_TYPE_ANY;
     break;
   default:
