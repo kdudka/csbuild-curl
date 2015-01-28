@@ -4,7 +4,6 @@
 POP3
 SASL
 SASL AUTH EXTERNAL
-SASL-IR
 RFC1734
 RFC4422
 RFC5034
@@ -16,7 +15,8 @@ RFC5034
 <reply>
 <servercmd>
 AUTH EXTERNAL
-REPLY AUTH +OK Login successful
+REPLY AUTH +
+REPLY = +OK Login successful
 </servercmd>
 <data>
 From: me@somewhere
@@ -36,10 +36,10 @@ body
 pop3
 </server>
  <name>
-POP3 external authentication with initial response
+POP3 external authentication without credentials
  </name>
  <command>
-'pop3://user;AUTH=EXTERNAL@%HOSTIP:%POP3PORT/948' --sasl-ir
+'pop3://;AUTH=EXTERNAL@%HOSTIP:%POP3PORT/884'
 </command>
 </client>
 
@@ -48,8 +48,9 @@ POP3 external authentication with initial response
 <verify>
 <protocol>
 CAPA
-AUTH EXTERNAL dXNlcg==
-RETR 948
+AUTH EXTERNAL
+=
+RETR 884
 QUIT
 </protocol>
 </verify>

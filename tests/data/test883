@@ -1,11 +1,12 @@
 <testcase>
 <info>
 <keywords>
-SMTP
+POP3
 SASL
 SASL AUTH EXTERNAL
+RFC1734
 RFC4422
-RFC4954
+RFC5034
 </keywords>
 </info>
 
@@ -14,25 +15,31 @@ RFC4954
 <reply>
 <servercmd>
 AUTH EXTERNAL
-REPLY AUTH 334 EXTERNAL supported
-REPLY dXNlcg== 235 Authenticated
+REPLY AUTH +
+REPLY dXNlcg== +OK Login successful
 </servercmd>
+<data>
+From: me@somewhere
+To: fake@nowhere
+
+body
+
+--
+  yours sincerely
+</data>
 </reply>
 
 #
 # Client-side
 <client>
 <server>
-smtp
+pop3
 </server>
  <name>
-SMTP external authentication
+POP3 external authentication
  </name>
-<stdin>
-mail body
-</stdin>
  <command>
-'smtp://user;AUTH=EXTERNAL@%HOSTIP:%SMTPPORT/950' --mail-rcpt recipient@example.com --mail-from sender@example.com -T -
+'pop3://user;AUTH=EXTERNAL@%HOSTIP:%POP3PORT/883'
 </command>
 </client>
 
@@ -40,17 +47,11 @@ mail body
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-EHLO 950
+CAPA
 AUTH EXTERNAL
 dXNlcg==
-MAIL FROM:<sender@example.com>
-RCPT TO:<recipient@example.com>
-DATA
+RETR 883
 QUIT
 </protocol>
-<upload>
-mail body
-.
-</upload>
 </verify>
 </testcase>

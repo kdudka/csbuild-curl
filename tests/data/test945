@@ -1,11 +1,12 @@
 <testcase>
 <info>
 <keywords>
-IMAP
+SMTP
 SASL
 SASL AUTH EXTERNAL
 SASL-IR
 RFC4422
+RFC4954
 </keywords>
 </info>
 
@@ -14,31 +15,24 @@ RFC4422
 <reply>
 <servercmd>
 AUTH EXTERNAL
-CAPA SASL-IR
-REPLY AUTHENTICATE A002 OK AUTHENTICATE completed
+REPLY AUTH 235 Authenticated
 </servercmd>
-<data>
-From: me@somewhere
-To: fake@nowhere
-
-body
-
---
-  yours sincerely
-</data>
 </reply>
 
 #
 # Client-side
 <client>
 <server>
-imap
+smtp
 </server>
  <name>
-IMAP external authentication with initial response without credentials
+SMTP external authentication with initial response without credentials
  </name>
+<stdin>
+mail body
+</stdin>
  <command>
-'imap://;AUTH=EXTERNAL@%HOSTIP:%IMAPPORT/945/;UID=1'
+'smtp://;AUTH=EXTERNAL@%HOSTIP:%SMTPPORT/945' --mail-rcpt recipient@example.com --mail-from sender@example.com --sasl-ir -T -
 </command>
 </client>
 
@@ -46,11 +40,16 @@ IMAP external authentication with initial response without credentials
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-A001 CAPABILITY
-A002 AUTHENTICATE EXTERNAL =
-A003 SELECT 945
-A004 FETCH 1 BODY[]
-A005 LOGOUT
+EHLO 945
+AUTH EXTERNAL =
+MAIL FROM:<sender@example.com>
+RCPT TO:<recipient@example.com>
+DATA
+QUIT
 </protocol>
+<upload>
+mail body
+.
+</upload>
 </verify>
 </testcase>

@@ -1,12 +1,10 @@
 <testcase>
 <info>
 <keywords>
-POP3
+IMAP
 SASL
 SASL AUTH EXTERNAL
-RFC1734
 RFC4422
-RFC5034
 </keywords>
 </info>
 
@@ -15,8 +13,8 @@ RFC5034
 <reply>
 <servercmd>
 AUTH EXTERNAL
-REPLY AUTH +
-REPLY = +OK Login successful
+REPLY AUTHENTICATE +
+REPLY dXNlcg== A002 OK AUTHENTICATE completed
 </servercmd>
 <data>
 From: me@somewhere
@@ -33,13 +31,13 @@ body
 # Client-side
 <client>
 <server>
-pop3
+imap
 </server>
  <name>
-POP3 external authentication without credentials
+IMAP external authentication
  </name>
  <command>
-'pop3://;AUTH=EXTERNAL@%HOSTIP:%POP3PORT/947'
+'imap://user;AUTH=EXTERNAL@%HOSTIP:%IMAPPORT/837/;UID=1'
 </command>
 </client>
 
@@ -47,11 +45,12 @@ POP3 external authentication without credentials
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-CAPA
-AUTH EXTERNAL
-=
-RETR 947
-QUIT
+A001 CAPABILITY
+A002 AUTHENTICATE EXTERNAL
+dXNlcg==
+A003 SELECT 837
+A004 FETCH 1 BODY[]
+A005 LOGOUT
 </protocol>
 </verify>
 </testcase>
