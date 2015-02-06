@@ -157,6 +157,9 @@ static void MD5_Final(unsigned char digest[16], MD5_CTX *ctx)
     CryptReleaseContext(ctx->hCryptProv, 0);
 }
 
+#elif defined(USE_AXTLS)
+#include <axTLS/os_int.h>
+#include <axTLS/crypto.h>
 #else
 /* When no other crypto library is available we use this code segment */
 /*
@@ -208,9 +211,9 @@ typedef struct {
   MD5_u32plus block[16];
 } MD5_CTX;
 
-extern void MD5_Init(MD5_CTX *ctx);
-extern void MD5_Update(MD5_CTX *ctx, const void *data, unsigned long size);
-extern void MD5_Final(unsigned char *result, MD5_CTX *ctx);
+static void MD5_Init(MD5_CTX *ctx);
+static void MD5_Update(MD5_CTX *ctx, const void *data, unsigned long size);
+static void MD5_Final(unsigned char *result, MD5_CTX *ctx);
 
 /*
  * The basic MD5 functions.
@@ -368,7 +371,7 @@ static const void *body(MD5_CTX *ctx, const void *data, unsigned long size)
   return ptr;
 }
 
-void MD5_Init(MD5_CTX *ctx)
+static void MD5_Init(MD5_CTX *ctx)
 {
   ctx->a = 0x67452301;
   ctx->b = 0xefcdab89;
@@ -379,7 +382,7 @@ void MD5_Init(MD5_CTX *ctx)
   ctx->hi = 0;
 }
 
-void MD5_Update(MD5_CTX *ctx, const void *data, unsigned long size)
+static void MD5_Update(MD5_CTX *ctx, const void *data, unsigned long size)
 {
   MD5_u32plus saved_lo;
   unsigned long used, available;
@@ -413,7 +416,7 @@ void MD5_Update(MD5_CTX *ctx, const void *data, unsigned long size)
   memcpy(ctx->buffer, data, size);
 }
 
-void MD5_Final(unsigned char *result, MD5_CTX *ctx)
+static void MD5_Final(unsigned char *result, MD5_CTX *ctx)
 {
   unsigned long used, available;
 
