@@ -1427,7 +1427,7 @@ static CURLcode telnet_do(struct connectdata *conn, bool *done)
     case WAIT_TIMEOUT:
     {
       for(;;) {
-        if(obj_count == 1) {
+        if(data->set.is_fread_set) {
           /* read from user-supplied method */
           result = (int) conn->fread_func(buf, 1, BUFSIZE - 1, conn->fread_in);
           if(result == CURL_READFUNC_ABORT) {
@@ -1439,8 +1439,10 @@ static CURLcode telnet_do(struct connectdata *conn, bool *done)
           if(result == CURL_READFUNC_PAUSE)
             break;
 
-          if(result == 0)                        /* no bytes */
+          if(result == 0) { /* no bytes, means end-of-file */
+            keepon = FALSE;
             break;
+          }
 
           readfile_read = result; /* fall thru with number of bytes read */
         }
