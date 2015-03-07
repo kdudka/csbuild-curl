@@ -262,9 +262,6 @@ struct ssl_connect_data {
      current state of the connection. */
   bool use;
   ssl_connection_state state;
-#ifdef USE_NGHTTP2
-  bool asked_for_h2;
-#endif
 #ifdef USE_OPENSSL
   /* these ones requires specific SSL-types */
   SSL_CTX* ctx;
@@ -601,12 +598,6 @@ enum upgrade101 {
   UPGR101_REQUESTED,          /* upgrade requested */
   UPGR101_RECEIVED,           /* response received */
   UPGR101_WORKING             /* talking upgraded protocol */
-};
-
-enum negotiatenpn {
-  NPN_INIT,                   /* default state */
-  NPN_HTTP1_1,                /* HTTP/1.1 negotiated */
-  NPN_HTTP2                   /* HTTP2 (draft-xx) negotiated */
 };
 
 /*
@@ -1070,7 +1061,7 @@ struct connectdata {
   } tunnel_state[2]; /* two separate ones to allow FTP */
   struct connectbundle *bundle; /* The bundle we are member of */
 
-  enum negotiatenpn negnpn;
+  int negnpn; /* APLN or NPN TLS negotiated protocol, CURL_HTTP_VERSION* */
 };
 
 /* The end of connectdata. */
