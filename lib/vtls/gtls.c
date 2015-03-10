@@ -97,6 +97,10 @@ static bool gtls_inited = FALSE;
 #  if (GNUTLS_VERSION_NUMBER >= 0x03020d)
 #    define HAS_OCSP
 #  endif
+
+#  if (GNUTLS_VERSION_NUMBER >= 0x030306)
+#    define HAS_CAPATH
+#  endif
 #endif
 
 #ifdef HAS_OCSP
@@ -207,7 +211,7 @@ static void showtime(struct SessionHandle *data,
 
   snprintf(data->state.buffer,
            BUFSIZE,
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT\n",
+           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
            text,
            Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
            tm->tm_mday,
@@ -462,6 +466,24 @@ gtls_connect_step1(struct connectdata *conn,
             rc, data->set.ssl.CAfile);
   }
 
+#ifdef HAS_CAPATH
+  if(data->set.ssl.CApath) {
+    /* set the trusted CA cert directory */
+    rc = gnutls_certificate_set_x509_trust_dir(conn->ssl[sockindex].cred,
+                                                data->set.ssl.CApath,
+                                                GNUTLS_X509_FMT_PEM);
+    if(rc < 0) {
+      infof(data, "error reading ca cert file %s (%s)\n",
+            data->set.ssl.CAfile, gnutls_strerror(rc));
+      if(data->set.ssl.verifypeer)
+        return CURLE_SSL_CACERT_BADFILE;
+    }
+    else
+      infof(data, "found %d certificates in %s\n",
+            rc, data->set.ssl.CApath);
+  }
+#endif
+
   if(data->set.ssl.CRLfile) {
     /* set the CRL list file */
     rc = gnutls_certificate_set_x509_crl_file(conn->ssl[sockindex].cred,
@@ -614,14 +636,14 @@ gtls_connect_step1(struct connectdata *conn,
 
 #ifdef USE_NGHTTP2
     if(data->set.httpversion == CURL_HTTP_VERSION_2_0) {
-      protocols[cur].data = NGHTTP2_PROTO_VERSION_ID;
+      protocols[cur].data = (unsigned char *)NGHTTP2_PROTO_VERSION_ID;
       protocols[cur].size = NGHTTP2_PROTO_VERSION_ID_LEN;
       cur++;
       infof(data, "ALPN, offering %s\n", NGHTTP2_PROTO_VERSION_ID);
     }
 #endif
 
-    protocols[cur].data = ALPN_HTTP_1_1;
+    protocols[cur].data = (unsigned char *)ALPN_HTTP_1_1;
     protocols[cur].size = ALPN_HTTP_1_1_LENGTH;
     cur++;
     infof(data, "ALPN, offering %s\n", ALPN_HTTP_1_1);
@@ -775,6 +797,16 @@ gtls_connect_step3(struct connectdata *conn,
 #endif
   CURLcode result = CURLE_OK;
 
+  gnutls_protocol_t version = gnutls_protocol_get_version(session);
+
+  /* the name of the cipher suite used, e.g. ECDHE_RSA_AES_256_GCM_SHA384. */
+  ptr = gnutls_cipher_suite_get_name(gnutls_kx_get(session),
+                                     gnutls_cipher_get(session),
+                                     gnutls_mac_get(session));
+
+  infof(data, "SSL connection using %s / %s\n",
+        gnutls_protocol_get_name(version), ptr);
+
   /* This function will return the peer's raw certificate (chain) as sent by
      the peer. These certificates are in raw format (DER encoded for
      X.509). In case of a X.509 then a certificate list may be present. The
@@ -840,17 +872,17 @@ gtls_connect_step3(struct connectdata *conn,
   if(data->set.ssl.verifystatus) {
     if(gnutls_ocsp_status_request_is_checked(session, 0) == 0) {
       if(verify_status & GNUTLS_CERT_REVOKED)
-        failf(data, "SSL server certificate was REVOKED\n");
+        infof(data, "\t server certificate was REVOKED\n");
       else
-        failf(data, "SSL server certificate status verification FAILED");
+        infof(data, "\t server certificate status verification FAILED\n");
 
       return CURLE_SSL_INVALIDCERTSTATUS;
     }
     else
-      infof(data, "SSL server certificate status verification OK\n");
+      infof(data, "\t server certificate status verification OK\n");
   }
   else
-    infof(data, "SSL server certificate status verification SKIPPED\n");
+    infof(data, "\t server certificate status verification SKIPPED\n");
 #endif
 
   /* initialize an X.509 certificate structure. */
@@ -1014,7 +1046,6 @@ gtls_connect_step3(struct connectdata *conn,
 
   /* Show:
 
-  - ciphers used
   - subject
   - start date
   - expire date
@@ -1053,14 +1084,6 @@ gtls_connect_step3(struct connectdata *conn,
   ptr = gnutls_compression_get_name(gnutls_compression_get(session));
   /* the *_get_name() says "NULL" if GNUTLS_COMP_NULL is returned */
   infof(data, "\t compression: %s\n", ptr);
-
-  /* the name of the cipher used. ie 3DES. */
-  ptr = gnutls_cipher_get_name(gnutls_cipher_get(session));
-  infof(data, "\t cipher: %s\n", ptr);
-
-  /* the MAC algorithms name. ie SHA1 */
-  ptr = gnutls_mac_get_name(gnutls_mac_get(session));
-  infof(data, "\t MAC: %s\n", ptr);
 
 #ifdef HAS_ALPN
   if(data->set.ssl_enable_alpn) {
