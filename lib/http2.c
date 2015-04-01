@@ -30,11 +30,11 @@
 #include "http.h"
 #include "sendf.h"
 #include "curl_base64.h"
-#include "curl_memory.h"
 #include "rawstr.h"
 #include "multiif.h"
 
-/* include memdebug.h last */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #if (NGHTTP2_VERSION_NUM < 0x000600)
@@ -102,7 +102,7 @@ const struct Curl_handler Curl_handler_http2 = {
   "HTTP2",                              /* scheme */
   ZERO_NULL,                            /* setup_connection */
   Curl_http,                            /* do_it */
-  ZERO_NULL,                            /* done */
+  Curl_http_done,                       /* done */
   ZERO_NULL,                            /* do_more */
   ZERO_NULL,                            /* connect_it */
   ZERO_NULL,                            /* connecting */
@@ -122,7 +122,7 @@ const struct Curl_handler Curl_handler_http2_ssl = {
   "HTTP2",                              /* scheme */
   ZERO_NULL,                            /* setup_connection */
   Curl_http,                            /* do_it */
-  ZERO_NULL,                            /* done */
+  Curl_http_done,                       /* done */
   ZERO_NULL,                            /* do_more */
   ZERO_NULL,                            /* connect_it */
   ZERO_NULL,                            /* connecting */
@@ -636,14 +636,6 @@ CURLcode Curl_http2_request_upgrade(Curl_send_buffer *req,
   struct SingleRequest *k = &conn->data->req;
   uint8_t *binsettings = conn->proto.httpc.binsettings;
 
-  result = Curl_http2_init(conn);
-  if(result)
-    return result;
-
-  result = Curl_http2_setup(conn);
-  if(result)
-    return result;
-
   /* As long as we have a fixed set of settings, we don't have to dynamically
    * figure out the base64 strings since it'll always be the same. However,
    * the settings will likely not be fixed every time in the future.
@@ -669,7 +661,7 @@ CURLcode Curl_http2_request_upgrade(Curl_send_buffer *req,
                             "Upgrade: %s\r\n"
                             "HTTP2-Settings: %s\r\n",
                             NGHTTP2_CLEARTEXT_PROTO_VERSION_ID, base64);
-  Curl_safefree(base64);
+  free(base64);
 
   k->upgr101 = UPGR101_REQUESTED;
 
@@ -945,7 +937,7 @@ static ssize_t http2_send(struct connectdata *conn, int sockindex,
                                        NULL, NULL);
   }
 
-  Curl_safefree(nva);
+  free(nva);
 
   if(stream_id < 0) {
     *err = CURLE_SEND_ERROR;
@@ -978,11 +970,16 @@ static ssize_t http2_send(struct connectdata *conn, int sockindex,
 
 CURLcode Curl_http2_setup(struct connectdata *conn)
 {
+  CURLcode result;
   struct http_conn *httpc = &conn->proto.httpc;
   if(conn->handler->flags & PROTOPT_SSL)
     conn->handler = &Curl_handler_http2_ssl;
   else
     conn->handler = &Curl_handler_http2;
+
+  result = Curl_http2_init(conn);
+  if(result)
+    return result;
 
   infof(conn->data, "Using HTTP2\n");
   httpc->bodystarted = FALSE;
@@ -1000,7 +997,7 @@ CURLcode Curl_http2_setup(struct connectdata *conn)
 
   conn->httpversion = 20;
 
-  return 0;
+  return CURLE_OK;
 }
 
 CURLcode Curl_http2_switched(struct connectdata *conn,
@@ -1010,6 +1007,10 @@ CURLcode Curl_http2_switched(struct connectdata *conn,
   struct http_conn *httpc = &conn->proto.httpc;
   int rv;
   struct SessionHandle *data = conn->data;
+
+  result = Curl_http2_setup(conn);
+  if(result)
+    return result;
 
   httpc->recv_underlying = (recving)conn->recv[FIRSTSOCKET];
   httpc->send_underlying = (sending)conn->send[FIRSTSOCKET];

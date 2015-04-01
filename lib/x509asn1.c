@@ -22,7 +22,7 @@
 
 #include "curl_setup.h"
 
-#if defined(USE_GSKIT) || defined(USE_NSS)
+#if defined(USE_GSKIT) || defined(USE_NSS) || defined(USE_GNUTLS)
 
 #include <curl/curl.h>
 #include "urldata.h"
@@ -209,7 +209,6 @@ static const char * octet2str(const char * beg, const char * end)
 }
 
 static const char * bit2str(const char * beg, const char * end)
-
 {
   /* Convert an ASN.1 bit string to a printable string.
      Return the dynamically allocated string, or NULL if an error occurs. */
@@ -298,8 +297,10 @@ utf8asn1str(char * * to, int type, const char * from, const char * end)
       case 4:
         wc = (wc << 8) | *(const unsigned char *) from++;
         wc = (wc << 8) | *(const unsigned char *) from++;
+        /* fallthrough */
       case 2:
         wc = (wc << 8) | *(const unsigned char *) from++;
+        /* fallthrough */
       default: /* case 1: */
         wc = (wc << 8) | *(const unsigned char *) from++;
       }
@@ -537,8 +538,6 @@ static const char * UTime2str(const char * beg, const char * end)
 
 const char * Curl_ASN1tostr(curl_asn1Element * elem, int type)
 {
-  static const char zero = '\0';
-
   /* Convert an ASN.1 element to a printable string.
      Return the dynamically allocated string, or NULL if an error occurs. */
 
@@ -559,7 +558,7 @@ const char * Curl_ASN1tostr(curl_asn1Element * elem, int type)
   case CURL_ASN1_OCTET_STRING:
     return octet2str(elem->beg, elem->end);
   case CURL_ASN1_NULL:
-    return strdup(&zero);
+    return strdup("");
   case CURL_ASN1_OBJECT_IDENTIFIER:
     return OID2str(elem->beg, elem->end, TRUE);
   case CURL_ASN1_UTC_TIME:
@@ -1024,7 +1023,7 @@ CURLcode Curl_extract_certinfo(struct connectdata * conn,
   return CURLE_OK;
 }
 
-#endif /* USE_GSKIT or USE_NSS */
+#endif /* USE_GSKIT or USE_NSS or USE_GNUTLS */
 
 #if defined(USE_GSKIT)
 
@@ -1116,8 +1115,7 @@ CURLcode Curl_verifyhost(struct connectdata * conn,
           if(len > 0)
             if(strlen(dnsname) == (size_t) len)
               i = Curl_cert_hostcheck((const char *) dnsname, conn->host.name);
-          if(dnsname)
-            free(dnsname);
+          free(dnsname);
           if(!i)
             return CURLE_PEER_FAILED_VERIFICATION;
           matched = i;

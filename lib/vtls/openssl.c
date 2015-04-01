@@ -73,10 +73,10 @@
 #endif
 
 #include "warnless.h"
-#include "curl_memory.h"
 #include "non-ascii.h" /* for Curl_convert_from_utf8 prototype */
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #ifndef OPENSSL_VERSION_NUMBER
@@ -484,7 +484,7 @@ int cert_stuff(struct connectdata *conn,
       STACK_OF(X509) *ca = NULL;
       int i;
 
-      f = fopen(cert_file,"rb");
+      f = fopen(cert_file, "rb");
       if(!f) {
         failf(data, "could not open PKCS12 file '%s'", cert_file);
         return 0;
@@ -605,7 +605,7 @@ int cert_stuff(struct connectdata *conn,
 #endif
           /* the typecast below was added to please mingw32 */
           priv_key = (EVP_PKEY *)
-            ENGINE_load_private_key(data->state.engine,key_file,
+            ENGINE_load_private_key(data->state.engine, key_file,
 #ifdef HAVE_ENGINE_LOAD_FOUR_ARGS
                                     ui_method,
 #endif
@@ -647,7 +647,7 @@ int cert_stuff(struct connectdata *conn,
 
     ssl=SSL_new(ctx);
     if(!ssl) {
-      failf(data,"unable to create an SSL structure");
+      failf(data, "unable to create an SSL structure");
       return 0;
     }
 
@@ -657,7 +657,7 @@ int cert_stuff(struct connectdata *conn,
        leak memory as the previous version: */
     if(x509) {
       EVP_PKEY *pktmp = X509_get_pubkey(x509);
-      EVP_PKEY_copy_parameters(pktmp,SSL_get_privatekey(ssl));
+      EVP_PKEY_copy_parameters(pktmp, SSL_get_privatekey(ssl));
       EVP_PKEY_free(pktmp);
     }
 
@@ -881,7 +881,7 @@ CURLcode Curl_ossl_set_engine_default(struct SessionHandle *data)
 #ifdef HAVE_OPENSSL_ENGINE_H
   if(data->state.engine) {
     if(ENGINE_set_default(data->state.engine, ENGINE_METHOD_ALL) > 0) {
-      infof(data,"set default crypto engine '%s'\n",
+      infof(data, "set default crypto engine '%s'\n",
             ENGINE_get_id(data->state.engine));
     }
     else {
@@ -1070,7 +1070,7 @@ static int asn1_output(const ASN1_UTCTIME *tm,
   const char *asn1_string;
   int gmt=FALSE;
   int i;
-  int year=0,month=0,day=0,hour=0,minute=0,second=0;
+  int year=0, month=0, day=0, hour=0, minute=0, second=0;
 
   i=tm->length;
   asn1_string=(const char *)tm->data;
@@ -1229,14 +1229,14 @@ static CURLcode verifyhost(struct connectdata *conn, X509 *server_cert)
   else {
     /* we have to look to the last occurrence of a commonName in the
        distinguished one to get the most significant one. */
-    int j,i=-1 ;
+    int j, i=-1;
 
 /* The following is done because of a bug in 0.9.6b */
 
     unsigned char *nulstr = (unsigned char *)"";
     unsigned char *peer_CN = nulstr;
 
-    X509_NAME *name = X509_get_subject_name(server_cert) ;
+    X509_NAME *name = X509_get_subject_name(server_cert);
     if(name)
       while((j = X509_NAME_get_index_by_NID(name, NID_commonName, i))>=0)
         i=j;
@@ -1246,7 +1246,8 @@ static CURLcode verifyhost(struct connectdata *conn, X509 *server_cert)
        UTF8 etc. */
 
     if(i>=0) {
-      ASN1_STRING *tmp = X509_NAME_ENTRY_get_data(X509_NAME_get_entry(name,i));
+      ASN1_STRING *tmp =
+        X509_NAME_ENTRY_get_data(X509_NAME_get_entry(name, i));
 
       /* In OpenSSL 0.9.7d and earlier, ASN1_STRING_to_UTF8 fails if the input
          is already UTF-8 encoded. We check for this case and copy the raw
@@ -1359,6 +1360,8 @@ static CURLcode verifystatus(struct connectdata *conn,
   ch = SSL_get_peer_cert_chain(connssl->handle);
   st = SSL_CTX_get_cert_store(connssl->ctx);
 
+#if ((OPENSSL_VERSION_NUMBER <= 0x1000201fL) /* Fixed after 1.0.2a */ || \
+     defined(LIBRESSL_VERSION_NUMBER))
   /* The authorized responder cert in the OCSP response MUST be signed by the
      peer cert's issuer (see RFC6960 section 4.2.2.2). If that's a root cert,
      no problem, but if it's an intermediate cert OpenSSL has a bug where it
@@ -1382,6 +1385,7 @@ static CURLcode verifystatus(struct connectdata *conn,
       }
     }
   }
+#endif
 
   if(OCSP_basic_verify(br, ch, st, 0) <= 0) {
     failf(data, "OCSP response verification failed");
@@ -1389,16 +1393,14 @@ static CURLcode verifystatus(struct connectdata *conn,
     goto end;
   }
 
-  for(i = 0; i < sk_OCSP_SINGLERESP_num(br->tbsResponseData->responses); i++) {
+  for(i = 0; i < OCSP_resp_count(br); i++) {
     int cert_status, crl_reason;
     OCSP_SINGLERESP *single = NULL;
 
     ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
 
-    if(!sk_OCSP_SINGLERESP_value(br->tbsResponseData->responses, i))
+    if(!(single = OCSP_resp_get0(br, i)))
       continue;
-
-    single = sk_OCSP_SINGLERESP_value(br->tbsResponseData->responses, i);
 
     cert_status = OCSP_single_get0_status(single, &crl_reason, &rev,
                                           &thisupd, &nextupd);
@@ -1955,6 +1957,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     failf(data, "failed setting cipher list: %s", ciphers);
     return CURLE_SSL_CIPHER;
   }
+  infof(data, "Cipher selection: %s\n", ciphers);
 
 #ifdef USE_TLS_SRP
   if(data->set.ssl.authtype == CURL_TLSAUTH_SRP) {
@@ -1964,7 +1967,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
       failf(data, "Unable to set SRP user name");
       return CURLE_BAD_FUNCTION_ARGUMENT;
     }
-    if(!SSL_CTX_set_srp_password(connssl->ctx,data->set.ssl.password)) {
+    if(!SSL_CTX_set_srp_password(connssl->ctx, data->set.ssl.password)) {
       failf(data, "failed setting SRP password");
       return CURLE_BAD_FUNCTION_ARGUMENT;
     }
@@ -1986,7 +1989,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
                                        data->set.str[STRING_SSL_CAPATH])) {
       if(data->set.ssl.verifypeer) {
         /* Fail if we insist on successfully verifying the server. */
-        failf(data,"error setting certificate verify locations:\n"
+        failf(data, "error setting certificate verify locations:\n"
               "  CAfile: %s\n  CApath: %s",
               data->set.str[STRING_SSL_CAFILE]?
               data->set.str[STRING_SSL_CAFILE]: "none",
@@ -2020,9 +2023,9 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     lookup=X509_STORE_add_lookup(SSL_CTX_get_cert_store(connssl->ctx),
                                  X509_LOOKUP_file());
     if(!lookup ||
-       (!X509_load_crl_file(lookup,data->set.str[STRING_SSL_CRLFILE],
+       (!X509_load_crl_file(lookup, data->set.str[STRING_SSL_CRLFILE],
                             X509_FILETYPE_PEM)) ) {
-      failf(data,"error loading CRL file: %s",
+      failf(data, "error loading CRL file: %s",
             data->set.str[STRING_SSL_CRLFILE]);
       return CURLE_SSL_CRL_BADFILE;
     }
@@ -2050,7 +2053,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     result = (*data->set.ssl.fsslctx)(data, connssl->ctx,
                                       data->set.ssl.fsslctxp);
     if(result) {
-      failf(data,"error signaled by ssl ctx callback");
+      failf(data, "error signaled by ssl ctx callback");
       return result;
     }
   }
@@ -2090,7 +2093,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     /* we got a session id, use it! */
     if(!SSL_set_session(connssl->handle, ssl_sessionid)) {
       failf(data, "SSL: SSL_set_session failed: %s",
-            ERR_error_string(ERR_get_error(),NULL));
+            ERR_error_string(ERR_get_error(), NULL));
       return CURLE_SSL_CONNECT_ERROR;
     }
     /* Informational message */
@@ -2100,7 +2103,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
   /* pass the raw socket into the SSL layers */
   if(!SSL_set_fd(connssl->handle, (int)sockfd)) {
     failf(data, "SSL: SSL_set_fd failed: %s",
-          ERR_error_string(ERR_get_error(),NULL));
+          ERR_error_string(ERR_get_error(), NULL));
     return CURLE_SSL_CONNECT_ERROR;
   }
 
@@ -2329,7 +2332,7 @@ static int X509V3_ext(struct SessionHandle *data,
           X509_EXTENSION_get_critical(ext)?"(critical)":"");
 
     if(!X509V3_EXT_print(bio_out, ext, 0, 0))
-      M_ASN1_OCTET_STRING_print(bio_out, ext->value);
+      ASN1_STRING_print(bio_out, (ASN1_STRING *)X509_EXTENSION_get_data(ext));
 
     BIO_get_mem_ptr(bio_out, &biomem);
 
@@ -2461,7 +2464,7 @@ static CURLcode get_cert_chain(struct connectdata *conn,
     num=X509_get_serialNumber(x);
     if(num->length <= 4) {
       value = ASN1_INTEGER_get(num);
-      infof(data,"   Serial Number: %ld (0x%lx)\n", value, value);
+      infof(data, "   Serial Number: %ld (0x%lx)\n", value, value);
       snprintf(bufp, CERTBUFFERSIZE, "%lx", value);
     }
     else {
@@ -2480,7 +2483,7 @@ static CURLcode get_cert_chain(struct connectdata *conn,
         left-=4;
       }
       if(num->length)
-        infof(data,"   Serial Number: %s\n", bufp);
+        infof(data, "   Serial Number: %s\n", bufp);
       else
         bufp[0]=0;
     }
@@ -2718,7 +2721,7 @@ static CURLcode servercert(struct connectdata *conn,
 
       fclose(fp);
 
-      if(X509_check_issued(issuer,connssl->server_cert) != X509_V_OK) {
+      if(X509_check_issued(issuer, connssl->server_cert) != X509_V_OK) {
         if(strict)
           failf(data, "SSL: Certificate issuer check failed (%s)",
                 data->set.str[STRING_SSL_ISSUERCERT]);

@@ -101,7 +101,6 @@
 #include "urldata.h"
 #include "non-ascii.h"
 #include "rawstr.h"
-#include "curl_memory.h"
 #include "curl_ntlm_core.h"
 #include "curl_md5.h"
 #include "curl_hmac.h"
@@ -110,7 +109,8 @@
 #include "curl_des.h"
 #include "curl_printf.h"
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #define NTLM_HMAC_MD5_LEN     (16)
@@ -618,7 +618,7 @@ CURLcode Curl_ntlm_core_mk_ntlmv2_hash(const char *user, size_t userlen,
   result = Curl_hmac_md5(ntlmhash, 16, identity, curlx_uztoui(identity_len),
                          ntlmv2hash);
 
-  Curl_safefree(identity);
+  free(identity);
 
   return result;
 }
@@ -705,8 +705,7 @@ CURLcode Curl_ntlm_core_mk_ntlmv2_resp(unsigned char *ntlmv2hash,
   result = Curl_hmac_md5(ntlmv2hash, NTLM_HMAC_MD5_LEN, ptr + 8,
                          NTLMv2_BLOB_LEN + 8, hmac_output);
   if(result) {
-    Curl_safefree(ptr);
-
+    free(ptr);
     return result;
   }
 

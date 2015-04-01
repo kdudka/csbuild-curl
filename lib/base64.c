@@ -27,10 +27,10 @@
 #include "urldata.h" /* for the SessionHandle definition */
 #include "warnless.h"
 #include "curl_base64.h"
-#include "curl_memory.h"
 #include "non-ascii.h"
 
-/* include memdebug.h last */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 /* ---- Base64 Encoding/Decoding Table --- */
@@ -149,7 +149,7 @@ CURLcode Curl_base64_decode(const char *src,
   for(i = 0; i < numQuantums; i++) {
     size_t result = decodeQuantum(pos, src);
     if(!result) {
-      Curl_safefree(newstr);
+      free(newstr);
 
       return CURLE_BAD_CONTENT_ENCODING;
     }
@@ -252,8 +252,7 @@ static CURLcode base64_encode(const char *table64,
   *output = '\0';
   *outptr = base64data; /* return pointer to new data, allocated memory */
 
-  if(convbuf)
-    free(convbuf);
+  free(convbuf);
 
   *outlen = strlen(base64data); /* return the length of the new data */
 

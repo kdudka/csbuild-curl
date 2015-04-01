@@ -155,7 +155,6 @@ static void mstate(struct SessionHandle *data, CURLMstate state
 
 struct Curl_sh_entry {
   struct SessionHandle *easy;
-  time_t timestamp;
   int action;  /* what action READ/WRITE this socket waits for */
   curl_socket_t socket; /* mainly to ease debugging */
   void *socketp; /* settable by users with curl_multi_assign() */
@@ -217,8 +216,7 @@ static void sh_freeentry(void *freethis)
 {
   struct Curl_sh_entry *p = (struct Curl_sh_entry *) freethis;
 
-  if(p)
-    free(p);
+  free(p);
 }
 
 static size_t fd_key_compare(void *k1, size_t k1_len, void *k2, size_t k2_len)
@@ -506,17 +504,21 @@ CURLMcode curl_multi_remove_handle(CURLM *multi_handle,
   if(!data->multi)
     return CURLM_OK; /* it is already removed so let's say it is fine! */
 
-
   premature = (data->mstate < CURLM_STATE_COMPLETED) ? TRUE : FALSE;
   easy_owns_conn = (data->easy_conn && (data->easy_conn->data == easy)) ?
     TRUE : FALSE;
 
   /* If the 'state' is not INIT or COMPLETED, we might need to do something
      nice to put the easy_handle in a good known state when this returns. */
-  if(premature)
+  if(premature) {
     /* this handle is "alive" so we need to count down the total number of
        alive connections when this is removed */
     multi->num_alive--;
+
+    /* When this handle gets removed, other handles may be able to get the
+       connection */
+    Curl_multi_process_pending_handles(multi);
+  }
 
   if(data->easy_conn &&
      data->mstate > CURLM_STATE_DO &&
@@ -927,7 +929,7 @@ CURLMcode curl_multi_wait(CURLM *multi_handle,
   else
     i = 0;
 
-  Curl_safefree(ufds);
+  free(ufds);
   if(ret)
     *ret = i;
   return CURLM_OK;
@@ -1582,8 +1584,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
           if(!retry) {
             /* if the URL is a follow-location and not just a retried request
                then figure out the URL here */
-            if(newurl)
-              free(newurl);
+            free(newurl);
             newurl = data->req.newurl;
             data->req.newurl = NULL;
             follow = FOLLOW_REDIR;
@@ -1608,8 +1609,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
           /* but first check to see if we got a location info even though we're
              not following redirects */
           if(data->req.location) {
-            if(newurl)
-              free(newurl);
+            free(newurl);
             newurl = data->req.location;
             data->req.location = NULL;
             result = Curl_follow(data, newurl, FOLLOW_FAKE);
@@ -1624,8 +1624,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
         }
       }
 
-      if(newurl)
-        free(newurl);
+      free(newurl);
       break;
     }
 
@@ -1706,14 +1705,15 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
 
         data->state.pipe_broke = FALSE;
 
+        /* Check if we can move pending requests to send pipe */
+        Curl_multi_process_pending_handles(multi);
+
         if(data->easy_conn) {
           /* if this has a connection, unsubscribe from the pipelines */
           data->easy_conn->writechannel_inuse = FALSE;
           data->easy_conn->readchannel_inuse = FALSE;
           Curl_removeHandleFromPipeline(data, data->easy_conn->send_pipe);
           Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
-          /* Check if we can move pending requests to send pipe */
-          Curl_multi_process_pending_handles(multi);
 
           if(disconnect_conn) {
             /* Don't attempt to send data over a connection that timed out */
@@ -2430,7 +2430,7 @@ CURLMcode curl_multi_socket_all(CURLM *multi_handle, int *running_handles)
 static CURLMcode multi_timeout(struct Curl_multi *multi,
                                long *timeout_ms)
 {
-  static struct timeval tv_zero = {0,0};
+  static struct timeval tv_zero = {0, 0};
 
   if(multi->timetree) {
     /* we have a tree of expire times */
@@ -2488,7 +2488,7 @@ static int update_timer(struct Curl_multi *multi)
     return -1;
   }
   if(timeout_ms < 0) {
-    static const struct timeval none={0,0};
+    static const struct timeval none={0, 0};
     if(Curl_splaycomparekeys(none, multi->timer_lastcall)) {
       multi->timer_lastcall = none;
       /* there's no timeout now but there was one previously, tell the app to

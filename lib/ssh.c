@@ -855,7 +855,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
         }
 
         if(out_of_memory || sshc->rsa == NULL) {
-          Curl_safefree(home);
+          free(home);
           Curl_safefree(sshc->rsa);
           Curl_safefree(sshc->rsa_pub);
           state(conn, SSH_SESSION_FREE);
@@ -867,7 +867,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
         if(!sshc->passphrase)
           sshc->passphrase = "";
 
-        Curl_safefree(home);
+        free(home);
 
         infof(data, "Using SSH public key file '%s'\n", sshc->rsa_pub);
         infof(data, "Using SSH private key file '%s'\n", sshc->rsa);
@@ -1918,7 +1918,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
           }
           result = Curl_client_write(conn, CLIENTWRITE_BODY,
                                      tmpLine, sshc->readdir_len+1);
-          Curl_safefree(tmpLine);
+          free(tmpLine);
 
           if(result) {
             state(conn, SSH_STOP);
@@ -2242,7 +2242,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
       DEBUGF(infof(data, "SFTP DONE done\n"));
 
       /* Check if nextstate is set and move .nextstate could be POSTQUOTE_INIT
-         After nextstate is executed,the control should come back to
+         After nextstate is executed, the control should come back to
          SSH_SFTP_CLOSE to pass the correct result back  */
       if(sshc->nextstate != SSH_NO_STATE &&
          sshc->nextstate != SSH_SFTP_CLOSE) {
@@ -3267,8 +3267,8 @@ get_pathname(const char **cpp, char **path)
   return CURLE_OK;
 
   fail:
-    Curl_safefree(*path);
-    return CURLE_QUOTE_ERROR;
+  Curl_safefree(*path);
+  return CURLE_QUOTE_ERROR;
 }
 
 

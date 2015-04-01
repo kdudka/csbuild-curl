@@ -448,10 +448,8 @@ CURLcode Curl_close(struct SessionHandle *data)
   Curl_ssl_free_certinfo(data);
 
   /* Cleanup possible redirect junk */
-  if(data->req.newurl) {
-    free(data->req.newurl);
-    data->req.newurl = NULL;
-  }
+  free(data->req.newurl);
+  data->req.newurl = NULL;
 
   if(data->change.referer_alloc) {
     Curl_safefree(data->change.referer);
@@ -668,8 +666,7 @@ CURLcode Curl_open(struct SessionHandle **curl)
 
   if(result) {
     Curl_resolver_cleanup(data->state.resolver);
-    if(data->state.headerbuff)
-      free(data->state.headerbuff);
+    free(data->state.headerbuff);
     Curl_freeset(data);
     free(data);
     data = NULL;
@@ -895,7 +892,11 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
      * Set explicit SSL version to try to connect with, as some SSL
      * implementations are lame.
      */
+#ifdef USE_SSL
     data->set.ssl.version = va_arg(param, long);
+#else
+    result = CURLE_UNKNOWN_OPTION;
+#endif
     break;
 
 #ifndef CURL_DISABLE_HTTP
@@ -1238,7 +1239,7 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
       argptr = strdup(argptr);
       if(!argptr || !data->cookies) {
         result = CURLE_OUT_OF_MEMORY;
-        Curl_safefree(argptr);
+        free(argptr);
       }
       else {
         Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
@@ -2030,6 +2031,17 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
     result = CURLE_NOT_BUILT_IN;
 #endif
     break;
+  case CURLOPT_SSL_FALSESTART:
+    /*
+     * Enable TLS false start.
+     */
+    if(!Curl_ssl_false_start()) {
+      result = CURLE_NOT_BUILT_IN;
+      break;
+    }
+
+    data->set.ssl.falsestart = (0 != va_arg(param, long))?TRUE:FALSE;
+    break;
   case CURLOPT_CERTINFO:
 #ifdef have_curlssl_certinfo
     data->set.ssl.certinfo = (0 != va_arg(param, long))?TRUE:FALSE;
@@ -2153,8 +2165,7 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
 #if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
       if(data->share->cookies) {
         /* use shared cookie list, first free own one if any */
-        if(data->cookies)
-          Curl_cookie_cleanup(data->cookies);
+        Curl_cookie_cleanup(data->cookies);
         /* enable cookies since we now use a share that uses cookies! */
         data->cookies = data->share->cookies;
       }
@@ -2606,6 +2617,9 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
     break;
 #endif
 
+  case CURLOPT_PATH_AS_IS:
+    data->set.path_as_is = (0 != va_arg(param, long))?TRUE:FALSE;
+    break;
   default:
     /* unknown tag and its companion, just ignore: */
     result = CURLE_UNKNOWN_OPTION;
@@ -2731,10 +2745,9 @@ CURLcode Curl_disconnect(struct connectdata *conn, bool dead_connection)
   free(conn->host.encalloc); /* encoded host name buffer, must be freed with
                                 idn_free() since this was allocated by
                                 curl_win32_idn_to_ascii */
-  if(conn->proxy.encalloc)
-    free(conn->proxy.encalloc); /* encoded proxy name buffer, must be freed
-                                   with idn_free() since this was allocated by
-                                   curl_win32_idn_to_ascii */
+  free(conn->proxy.encalloc); /* encoded proxy name buffer, must be freed
+                                 with idn_free() since this was allocated by
+                                 curl_win32_idn_to_ascii */
 #endif
 
   Curl_ssl_close(conn, FIRSTSOCKET);
@@ -3070,8 +3083,7 @@ ConnectionExists(struct SessionHandle *data,
 
   /* Look up the bundle with all the connections to this
      particular host */
-  bundle = Curl_conncache_find_bundle(data->state.conn_cache,
-                                      needle->host.name);
+  bundle = Curl_conncache_find_bundle(needle, data->state.conn_cache);
   if(bundle) {
     size_t max_pipe_len = Curl_multi_max_pipeline_length(data->multi);
     size_t best_pipe_len = max_pipe_len;
@@ -3632,7 +3644,7 @@ static void fix_hostname(struct SessionHandle *data,
            stringprep_locale_charset ());
     if(rc != IDNA_SUCCESS)
       infof(data, "Failed to convert %s to ACE; %s\n",
-            host->name, Curl_idn_strerror(conn,rc));
+            host->name, Curl_idn_strerror(conn, rc));
     else {
       /* tld_check_name() displays a warning if the host name contains
          "illegal" characters for this TLD */
@@ -3786,9 +3798,9 @@ static struct connectdata *allocate_conn(struct SessionHandle *data)
   conn->send_pipe = NULL;
   conn->recv_pipe = NULL;
 
-  Curl_safefree(conn->master_buffer);
-  Curl_safefree(conn->localdev);
-  Curl_safefree(conn);
+  free(conn->master_buffer);
+  free(conn->localdev);
+  free(conn);
   return NULL;
 }
 
@@ -4031,7 +4043,7 @@ static CURLcode parseurlandfillconn(struct SessionHandle *data,
     path[0] = '/';
     rebuild_url = TRUE;
   }
-  else {
+  else if(!data->set.path_as_is) {
     /* sanitise paths and remove ../ and ./ sequences according to RFC3986 */
     char *newp = Curl_dedotdotify(path);
     if(!newp)
@@ -4426,8 +4438,7 @@ static char *detect_proxy(struct connectdata *conn)
     }
   } /* if(!check_noproxy(conn->host.name, no_proxy)) - it wasn't specified
        non-proxy */
-  if(no_proxy)
-    free(no_proxy);
+  free(no_proxy);
 
 #else /* !CURL_DISABLE_HTTP */
 
@@ -4515,8 +4526,8 @@ static CURLcode parse_proxy(struct SessionHandle *data,
       }
     }
 
-    Curl_safefree(proxyuser);
-    Curl_safefree(proxypasswd);
+    free(proxyuser);
+    free(proxypasswd);
 
     if(result)
       return result;
@@ -4728,9 +4739,9 @@ static CURLcode parse_url_login(struct SessionHandle *data,
 
   out:
 
-  Curl_safefree(userp);
-  Curl_safefree(passwdp);
-  Curl_safefree(optionsp);
+  free(userp);
+  free(passwdp);
+  free(optionsp);
 
   return result;
 }
@@ -4818,7 +4829,7 @@ static CURLcode parse_login_details(const char *login, const size_t len,
   if(!result && passwdp && plen) {
     pbuf = malloc(plen + 1);
     if(!pbuf) {
-      Curl_safefree(ubuf);
+      free(ubuf);
       result = CURLE_OUT_OF_MEMORY;
     }
   }
@@ -4827,8 +4838,8 @@ static CURLcode parse_login_details(const char *login, const size_t len,
   if(!result && optionsp && olen) {
     obuf = malloc(olen + 1);
     if(!obuf) {
-      Curl_safefree(pbuf);
-      Curl_safefree(ubuf);
+      free(pbuf);
+      free(ubuf);
       result = CURLE_OUT_OF_MEMORY;
     }
   }
@@ -5190,8 +5201,7 @@ static CURLcode resolve_server(struct SessionHandle *data,
 static void reuse_conn(struct connectdata *old_conn,
                        struct connectdata *conn)
 {
-  if(old_conn->proxy.rawalloc)
-    free(old_conn->proxy.rawalloc);
+  free(old_conn->proxy.rawalloc);
 
   /* free the SSL config struct from this connection struct as this was
      allocated in vain and is targeted for destruction */
@@ -5440,10 +5450,8 @@ static CURLcode create_conn(struct SessionHandle *data,
 
   if(data->set.str[STRING_NOPROXY] &&
      check_noproxy(conn->host.name, data->set.str[STRING_NOPROXY])) {
-    if(proxy) {
-      free(proxy);  /* proxy is in exception list */
-      proxy = NULL;
-    }
+    free(proxy);  /* proxy is in exception list */
+    proxy = NULL;
   }
   else if(!proxy)
     proxy = detect_proxy(conn);
@@ -5469,7 +5477,8 @@ static CURLcode create_conn(struct SessionHandle *data,
   if(proxy) {
     result = parse_proxy(data, conn, proxy);
 
-    Curl_safefree(proxy); /* parse_proxy copies the proxy string */
+    free(proxy); /* parse_proxy copies the proxy string */
+    proxy = NULL;
 
     if(result)
       goto out;
@@ -5658,8 +5667,9 @@ static CURLcode create_conn(struct SessionHandle *data,
     /* set a pointer to the hostname we display */
     fix_hostname(data, conn, &conn->host);
 
-    infof(data, "Re-using existing connection! (#%ld) with host %s\n",
+    infof(data, "Re-using existing connection! (#%ld) with %s %s\n",
           conn->connection_id,
+          conn->bits.proxy?"proxy":"host",
           conn->proxy.name?conn->proxy.dispname:conn->host.dispname);
   }
   else {
@@ -5668,8 +5678,7 @@ static CURLcode create_conn(struct SessionHandle *data,
        connections we are allowed to open. */
     struct connectbundle *bundle;
 
-    bundle = Curl_conncache_find_bundle(data->state.conn_cache,
-                                        conn->host.name);
+    bundle = Curl_conncache_find_bundle(conn, data->state.conn_cache);
     if(max_host_connections > 0 && bundle &&
        (bundle->num_connections >= max_host_connections)) {
       struct connectdata *conn_candidate;
@@ -5769,10 +5778,10 @@ static CURLcode create_conn(struct SessionHandle *data,
 
   out:
 
-  Curl_safefree(options);
-  Curl_safefree(passwd);
-  Curl_safefree(user);
-  Curl_safefree(proxy);
+  free(options);
+  free(passwd);
+  free(user);
+  free(proxy);
   return result;
 }
 
@@ -5932,14 +5941,10 @@ CURLcode Curl_done(struct connectdata **connp,
   conn->bits.done = TRUE; /* called just now! */
 
   /* Cleanup possible redirect junk */
-  if(data->req.newurl) {
-    free(data->req.newurl);
-    data->req.newurl = NULL;
-  }
-  if(data->req.location) {
-    free(data->req.location);
-    data->req.location = NULL;
-  }
+  free(data->req.newurl);
+  data->req.newurl = NULL;
+  free(data->req.location);
+  data->req.location = NULL;
 
   Curl_resolver_cancel(conn);
 
@@ -5972,10 +5977,8 @@ CURLcode Curl_done(struct connectdata **connp,
 
   /* if the transfer was completed in a paused state there can be buffered
      data left to write and then kill */
-  if(data->state.tempwrite) {
-    free(data->state.tempwrite);
-    data->state.tempwrite = NULL;
-  }
+  free(data->state.tempwrite);
+  data->state.tempwrite = NULL;
 
   /* if data->set.reuse_forbid is TRUE, it means the libcurl client has
      forced us to close this connection. This is ignored for requests taking

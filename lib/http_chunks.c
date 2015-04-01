@@ -29,12 +29,12 @@
 
 #include "content_encoding.h"
 #include "http.h"
-#include "curl_memory.h"
 #include "non-ascii.h" /* for Curl_convert_to_network prototype */
 #include "strtoofft.h"
 #include "warnless.h"
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 /*
@@ -155,7 +155,7 @@ CHUNKcode Curl_httpchunk_read(struct connectdata *conn,
         if(result) {
           /* Curl_convert_from_network calls failf if unsuccessful */
           /* Treat it as a bad hex character */
-          return CHUNKE_ILLEGAL_HEX ;
+          return CHUNKE_ILLEGAL_HEX;
         }
 
         ch->datasize=curlx_strtoofft(ch->hexbuffer, &endptr, 16);

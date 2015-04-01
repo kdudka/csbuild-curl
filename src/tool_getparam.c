@@ -177,6 +177,7 @@ static const struct LongShort aliases[]= {
   {"$K", "sasl-ir",                  FALSE},
   {"$L", "test-event",               FALSE},
   {"$M", "unix-socket",              TRUE},
+  {"$N", "path-as-is",               FALSE},
   {"0",   "http1.0",                 FALSE},
   {"01",  "http1.1",                 FALSE},
   {"02",  "http2",                   FALSE},
@@ -218,6 +219,7 @@ static const struct LongShort aliases[]= {
   {"Eo", "login-options",            TRUE},
   {"Ep", "pinnedpubkey",             TRUE},
   {"Eq", "cert-status",              FALSE},
+  {"Er", "false-start",              FALSE},
   {"f",  "fail",                     FALSE},
   {"F",  "form",                     TRUE},
   {"Fs", "form-string",              TRUE},
@@ -981,6 +983,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       case 'M': /* --unix-socket */
         GetStr(&config->unix_socket_path, nextarg);
         break;
+      case 'N': /* --path-as-is */
+        config->path_as_is = toggle;
+        break;
       }
       break;
     case '#': /* --progress-bar */
@@ -1310,7 +1315,7 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         break;
       case 'f': /* crypto engine */
         GetStr(&config->engine, nextarg);
-        if(config->engine && curlx_raw_equal(config->engine,"list"))
+        if(config->engine && curlx_raw_equal(config->engine, "list"))
           return PARAM_ENGINES_REQUESTED;
         break;
       case 'g': /* CA info PEM file */
@@ -1366,6 +1371,10 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
 
       case 'q': /* --cert-status */
         config->verifystatus = TRUE;
+        break;
+
+      case 'r': /* --false-start */
+        config->falsestart = TRUE;
         break;
 
       default: /* certificate file */

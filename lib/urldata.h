@@ -120,6 +120,7 @@
 #endif
 
 #ifdef USE_AXTLS
+#include <axTLS/config.h>
 #include <axTLS/ssl.h>
 #undef malloc
 #undef calloc
@@ -350,6 +351,7 @@ struct ssl_config_data {
   void *fsslctxp;        /* parameter for call back */
   bool sessionid;        /* cache session IDs or not */
   bool certinfo;         /* gather lots of certificate info */
+  bool falsestart;
 
 #ifdef USE_TLS_SRP
   char *username; /* TLS username (for, e.g., SRP) */
@@ -1615,7 +1617,7 @@ struct UserDefined {
 
   bool ssl_enable_npn;  /* TLS NPN extension? */
   bool ssl_enable_alpn; /* TLS ALPN extension? */
-
+  bool path_as_is;      /* allow dotdots? */
   long expect_100_timeout; /* in milliseconds */
 };
 

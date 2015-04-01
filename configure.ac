@@ -1184,6 +1184,8 @@ AC_ARG_WITH(gssapi,
   fi
 ])
 
+: ${KRB5CONFIG:="$GSSAPI_ROOT/bin/krb5-config"}
+
 save_CPPFLAGS="$CPPFLAGS"
 AC_MSG_CHECKING([if GSS-API support is requested])
 if test x"$want_gss" = xyes; then
@@ -1194,6 +1196,8 @@ if test x"$want_gss" = xyes; then
         GSSAPI_INCS=`$GSSAPI_ROOT/bin/$host_alias-krb5-config --cflags gssapi`
      elif test -f "$GSSAPI_ROOT/bin/krb5-config"; then
         GSSAPI_INCS=`$GSSAPI_ROOT/bin/krb5-config --cflags gssapi`
+     elif test -f "$KRB5CONFIG"; then
+        GSSAPI_INCS=`$KRB5CONFIG --cflags gssapi`
      elif test "$GSSAPI_ROOT" != "yes"; then
         GSSAPI_INCS="-I$GSSAPI_ROOT/include"
      fi
@@ -1283,10 +1287,10 @@ if test x"$want_gss" = xyes; then
            dnl into LIBS
            gss_libs=`$GSSAPI_ROOT/bin/$host_alias-krb5-config --libs gssapi`
            LIBS="$gss_libs $LIBS"
-        elif test -f "$GSSAPI_ROOT/bin/krb5-config"; then
+        elif test -f "$KRB5CONFIG"; then
            dnl krb5-config doesn't have --libs-only-L or similar, put everything
            dnl into LIBS
-           gss_libs=`$GSSAPI_ROOT/bin/krb5-config --libs gssapi`
+           gss_libs=`$KRB5CONFIG --libs gssapi`
            LIBS="$gss_libs $LIBS"
         else
            case $host in
@@ -1451,6 +1455,7 @@ if test "$curl_ssl_msg" = "$init_ssl_msg" && test X"$OPT_SSL" != Xno; then
       SSL_CPPFLAGS=`CURL_EXPORT_PCDIR([$OPENSSL_PCDIR]) dnl
         $PKGCONFIG --cflags-only-I openssl 2>/dev/null`
 
+      AC_SUBST(SSL_LIBS)
       AC_MSG_NOTICE([pkg-config: SSL_LIBS: "$SSL_LIBS"])
       AC_MSG_NOTICE([pkg-config: SSL_LDFLAGS: "$SSL_LDFLAGS"])
       AC_MSG_NOTICE([pkg-config: SSL_CPPFLAGS: "$SSL_CPPFLAGS"])
@@ -1572,8 +1577,10 @@ if test "$curl_ssl_msg" = "$init_ssl_msg" && test X"$OPT_SSL" != Xno; then
                 AC_CHECK_FUNCS( ENGINE_load_builtin_engines )
               ])
 
-    dnl these can only exist if openssl exists
-    dnl Cyassl doesn't have SSL_get_shutdown
+    dnl These can only exist if OpenSSL exists
+    dnl Older versions of Cyassl (some time before 2.9.4) don't have
+    dnl SSL_get_shutdown (but this check won't actually detect it there
+    dnl as it's a macro that needs the header files be included)
     dnl BoringSSL doesn't have DES_set_odd_parity
 
     AC_CHECK_FUNCS( RAND_status \
@@ -1940,6 +1947,10 @@ if test "$curl_ssl_msg" = "$init_ssl_msg"; then
       OPT_CYASSL=""
     fi
 
+    dnl This should be reworked to use pkg-config instead
+
+    cyassllibname=cyassl
+
     if test -z "$OPT_CYASSL" ; then
       dnl check for lib in system default first
 
@@ -1981,7 +1992,55 @@ if test "$curl_ssl_msg" = "$init_ssl_msg"; then
        [
          CPPFLAGS=$_cppflags
          LDFLAGS=$_ldflags
+         cyassllib=""
        ])
+    fi
+
+    addld=""
+    addlib=""
+    addcflags=""
+
+    if test "x$USE_CYASSL" != "xyes"; then
+      dnl libcyassl renamed to libwolfssl as of 3.4.0
+      addld=-L$OPT_CYASSL/lib$libsuff
+      addcflags=-I$OPT_CYASSL/include
+      cyassllib=$OPT_CYASSL/lib$libsuff
+
+      LDFLAGS="$LDFLAGS $addld"
+      if test "$addcflags" != "-I/usr/include"; then
+         CPPFLAGS="$CPPFLAGS $addcflags"
+      fi
+
+      cyassllibname=wolfssl
+      my_ac_save_LIBS="$LIBS"
+      LIBS="-l$cyassllibname -lm $LIBS"
+
+      AC_MSG_CHECKING([for CyaSSL_Init in -lwolfssl])
+      AC_LINK_IFELSE([
+	AC_LANG_PROGRAM([[
+/* These aren't needed for detection and confuse WolfSSL.
+   They are set up properly later if it is detected.  */
+#undef SIZEOF_LONG
+#undef SIZEOF_LONG_LONG
+#include <cyassl/ssl.h>
+	]],[[
+	  return CyaSSL_Init();
+	]])
+      ],[
+         AC_MSG_RESULT(yes)
+         AC_DEFINE(USE_CYASSL, 1, [if CyaSSL is enabled])
+         AC_SUBST(USE_CYASSL, [1])
+         CYASSL_ENABLED=1
+         USE_CYASSL="yes"
+         curl_ssl_msg="enabled (CyaSSL)"
+       ],
+       [
+         AC_MSG_RESULT(no)
+         CPPFLAGS=$_cppflags
+         LDFLAGS=$_ldflags
+         cyassllib=""
+       ])
+      LIBS="$my_ac_save_LIBS"
     fi
 
     if test "x$USE_CYASSL" = "xyes"; then
@@ -1993,7 +2052,7 @@ if test "$curl_ssl_msg" = "$init_ssl_msg"; then
       dnl Versions since at least 2.9.4 renamed error.h to error-ssl.h
       AC_CHECK_HEADERS(cyassl/error-ssl.h)
 
-      LIBS="-lcyassl -lm $LIBS"
+      LIBS="-l$cyassllibname -lm $LIBS"
 
       if test -n "$cyassllib"; then
         dnl when shared libs were found in a path that the run-time

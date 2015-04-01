@@ -46,11 +46,11 @@
 #include "curl_gssapi.h"
 #include "sendf.h"
 #include "curl_sec.h"
-#include "curl_memory.h"
 #include "warnless.h"
 #include "curl_printf.h"
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #define LOCAL_ADDR (&conn->local_addr)
@@ -246,7 +246,8 @@ krb5_auth(void *app_data, struct connectdata *conn)
         result = Curl_base64_encode(data, (char *)output_buffer.value,
                                     output_buffer.length, &p, &base64_sz);
         if(result) {
-          Curl_infof(data,"base64-encoding: %s\n", curl_easy_strerror(result));
+          Curl_infof(data, "base64-encoding: %s\n",
+                     curl_easy_strerror(result));
           ret = AUTH_CONTINUE;
           break;
         }
@@ -278,7 +279,8 @@ krb5_auth(void *app_data, struct connectdata *conn)
                                       (unsigned char **)&_gssresp.value,
                                       &_gssresp.length);
           if(result) {
-            Curl_failf(data,"base64-decoding: %s", curl_easy_strerror(result));
+            Curl_failf(data, "base64-decoding: %s",
+                       curl_easy_strerror(result));
             ret = AUTH_CONTINUE;
             break;
           }

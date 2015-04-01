@@ -63,7 +63,6 @@
 #include "share.h"
 #include "hostip.h"
 #include "http.h"
-#include "curl_memory.h"
 #include "select.h"
 #include "parsedate.h" /* for the week day and month names */
 #include "strtoofft.h"
@@ -79,7 +78,8 @@
 #include "connect.h"
 #include "curl_printf.h"
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 /*
@@ -301,7 +301,7 @@ static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
   if(!authorization)
     return CURLE_REMOTE_ACCESS_DENIED;
 
-  Curl_safefree(*userp);
+  free(*userp);
   *userp = aprintf("%sAuthorization: Basic %s\r\n",
                    proxy?"Proxy-":"",
                    authorization);
@@ -731,7 +731,7 @@ Curl_http_output_auth(struct connectdata *conn,
 
   if((conn->bits.httpproxy && conn->bits.proxy_user_passwd) ||
      conn->bits.user_passwd)
-    /* continue please */ ;
+    /* continue please */;
   else {
     authhost->done = TRUE;
     authproxy->done = TRUE;
@@ -1124,8 +1124,7 @@ CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
   /* Curl_convert_to_network calls failf if unsuccessful */
   if(result) {
     /* conversion failed, free memory and return to the caller */
-    if(in->buffer)
-      free(in->buffer);
+    free(in->buffer);
     free(in);
     return result;
   }
@@ -1228,8 +1227,7 @@ CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
         conn->writechannel_inuse = FALSE;
     }
   }
-  if(in->buffer)
-    free(in->buffer);
+  free(in->buffer);
   free(in);
 
   return result;
@@ -1253,8 +1251,7 @@ CURLcode Curl_add_bufferf(Curl_send_buffer *in, const char *fmt, ...)
     return result;
   }
   /* If we failed, we cleanup the whole buffer and return error */
-  if(in->buffer)
-    free(in->buffer);
+  free(in->buffer);
   free(in);
   return CURLE_OUT_OF_MEMORY;
 }
@@ -1573,10 +1570,11 @@ static CURLcode expect100(struct SessionHandle *data,
   const char *ptr;
   data->state.expect100header = FALSE; /* default to false unless it is set
                                           to TRUE below */
-  if(use_http_1_1plus(data, conn)) {
-    /* if not doing HTTP 1.0 or disabled explicitly, we add a Expect:
-       100-continue to the headers which actually speeds up post operations
-       (as there is one packet coming back from the web server) */
+  if(use_http_1_1plus(data, conn) &&
+     (conn->httpversion != 20)) {
+    /* if not doing HTTP 1.0 or version 2, or disabled explicitly, we add an
+       Expect: 100-continue to the headers which actually speeds up post
+       operations (as there is one packet coming back from the web server) */
     ptr = Curl_checkheaders(conn, "Expect:");
     if(ptr) {
       data->state.expect100header =
@@ -1796,6 +1794,7 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
                                   http2 */
     switch(conn->negnpn) {
     case CURL_HTTP_VERSION_2_0:
+      conn->httpversion = 20; /* we know we're on HTTP/2 now */
       result = Curl_http2_init(conn);
       if(result)
         return result;
@@ -1826,10 +1825,8 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
   http = data->req.protop;
 
   if(!data->state.this_is_a_follow) {
-    /* this is not a followed location, get the original host name */
-    if(data->state.first_host)
-      /* Free to avoid leaking memory on multiple requests*/
-      free(data->state.first_host);
+    /* Free to avoid leaking memory on multiple requests*/
+    free(data->state.first_host);
 
     data->state.first_host = strdup(conn->host.name);
     if(!data->state.first_host)
@@ -1873,7 +1870,7 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
      it might have been used in the proxy connect, but if we have got a header
      with the user-agent string specified, we erase the previously made string
      here. */
-  if(Curl_checkheaders(conn, "User-Agent:") && conn->allocptr.uagent) {
+  if(Curl_checkheaders(conn, "User-Agent:")) {
     free(conn->allocptr.uagent);
     conn->allocptr.uagent=NULL;
   }
@@ -2016,7 +2013,14 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
     }
 #endif
 
-    conn->allocptr.host = NULL;
+    if(strcmp("Host:", ptr)) {
+      conn->allocptr.host = aprintf("%s\r\n", ptr);
+      if(!conn->allocptr.host)
+        return CURLE_OUT_OF_MEMORY;
+    }
+    else
+      /* when clearing the header */
+      conn->allocptr.host = NULL;
   }
   else {
     /* When building Host: headers, we must put the host name within
@@ -2211,8 +2215,7 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
     if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
        !Curl_checkheaders(conn, "Range:")) {
       /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
+      free(conn->allocptr.rangeline);
       conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
                                          data->state.range);
     }
@@ -2220,8 +2223,7 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
             !Curl_checkheaders(conn, "Content-Range:")) {
 
       /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
+      free(conn->allocptr.rangeline);
 
       if(data->set.set_resume_from < 0) {
         /* Upload resume was asked for, but we don't know the size of the
@@ -2285,11 +2287,11 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
     Curl_add_bufferf(req_buffer,
                      "%s" /* ftp typecode (;type=x) */
                      " HTTP/%s\r\n" /* HTTP version */
+                     "%s" /* host */
                      "%s" /* proxyuserpwd */
                      "%s" /* userpwd */
                      "%s" /* range */
                      "%s" /* user agent */
-                     "%s" /* host */
                      "%s" /* accept */
                      "%s" /* TE: */
                      "%s" /* accept-encoding */
@@ -2299,6 +2301,7 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
 
                      ftp_typecode,
                      httpstring,
+                     (conn->allocptr.host?conn->allocptr.host:""),
                      conn->allocptr.proxyuserpwd?
                      conn->allocptr.proxyuserpwd:"",
                      conn->allocptr.userpwd?conn->allocptr.userpwd:"",
@@ -2308,7 +2311,6 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
                       *data->set.str[STRING_USERAGENT] &&
                       conn->allocptr.uagent)?
                      conn->allocptr.uagent:"",
-                     (conn->allocptr.host?conn->allocptr.host:""),
                      http->p_accept?http->p_accept:"",
                      conn->allocptr.te?conn->allocptr.te:"",
                      (data->set.str[STRING_ENCODING] &&
@@ -3483,7 +3485,7 @@ CURLcode Curl_http_readwrite_headers(struct SessionHandle *data,
         if(Curl_pipeline_server_blacklisted(data, server_name))
           conn->bundle->server_supports_pipelining = FALSE;
       }
-      Curl_safefree(server_name);
+      free(server_name);
     }
     else if((conn->httpversion == 10) &&
             conn->bits.httpproxy &&
@@ -3688,7 +3690,7 @@ CURLcode Curl_http_readwrite_headers(struct SessionHandle *data,
 
       result = Curl_http_input_auth(conn, proxy, auth);
 
-      Curl_safefree(auth);
+      free(auth);
 
       if(result)
         return result;

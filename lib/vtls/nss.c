@@ -63,12 +63,12 @@
 #include <ocsp.h>
 #endif
 
-#include "curl_memory.h"
 #include "rawstr.h"
 #include "warnless.h"
 #include "x509asn1.h"
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #define SSL_DIR "/etc/pki/nssdb"
@@ -689,10 +689,6 @@ static void HandshakeCallback(PRFileDesc *sock, void *arg)
   unsigned int buflen;
   SSLNextProtoState state;
 
-#ifdef USE_NGHTTP2
-  struct ssl_connect_data *connssl = &conn->ssl[FIRSTSOCKET];
-#endif
-
   if(!conn->data->set.ssl_enable_npn && !conn->data->set.ssl_enable_alpn) {
     return;
   }
@@ -726,6 +722,64 @@ static void HandshakeCallback(PRFileDesc *sock, void *arg)
       conn->negnpn = CURL_HTTP_VERSION_1_1;
     }
   }
+}
+
+static SECStatus CanFalseStartCallback(PRFileDesc *sock, void *client_data,
+                                       PRBool *canFalseStart)
+{
+  struct connectdata *conn = client_data;
+  struct SessionHandle *data = conn->data;
+
+  SSLChannelInfo channelInfo;
+  SSLCipherSuiteInfo cipherInfo;
+
+  SECStatus rv;
+  PRBool negotiatedExtension;
+
+  *canFalseStart = PR_FALSE;
+
+  if(SSL_GetChannelInfo(sock, &channelInfo, sizeof(channelInfo)) != SECSuccess)
+    return SECFailure;
+
+  if(SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
+                            sizeof(cipherInfo)) != SECSuccess)
+    return SECFailure;
+
+  /* Prevent version downgrade attacks from TLS 1.2, and avoid False Start for
+   * TLS 1.3 and later. See https://bugzilla.mozilla.org/show_bug.cgi?id=861310
+   */
+  if(channelInfo.protocolVersion != SSL_LIBRARY_VERSION_TLS_1_2)
+    goto end;
+
+  /* Only allow ECDHE key exchange algorithm.
+   * See https://bugzilla.mozilla.org/show_bug.cgi?id=952863 */
+  if(cipherInfo.keaType != ssl_kea_ecdh)
+    goto end;
+
+  /* Prevent downgrade attacks on the symmetric cipher. We do not allow CBC
+   * mode due to BEAST, POODLE, and other attacks on the MAC-then-Encrypt
+   * design. See https://bugzilla.mozilla.org/show_bug.cgi?id=1109766 */
+  if(cipherInfo.symCipher != ssl_calg_aes_gcm)
+    goto end;
+
+  /* Enforce ALPN or NPN to do False Start, as an indicator of server
+   * compatibility. */
+  rv = SSL_HandshakeNegotiatedExtension(sock, ssl_app_layer_protocol_xtn,
+                                        &negotiatedExtension);
+  if(rv != SECSuccess || !negotiatedExtension) {
+    rv = SSL_HandshakeNegotiatedExtension(sock, ssl_next_proto_nego_xtn,
+                                          &negotiatedExtension);
+  }
+
+  if(rv != SECSuccess || !negotiatedExtension)
+    goto end;
+
+  *canFalseStart = PR_TRUE;
+
+  infof(data, "Trying TLS False Start\n");
+
+end:
+  return SECSuccess;
 }
 
 static void display_cert_info(struct SessionHandle *data,
@@ -861,7 +915,7 @@ static SECStatus BadCertHandler(void *arg, PRFileDesc *sock)
 static SECStatus check_issuer_cert(PRFileDesc *sock,
                                    char *issuer_nickname)
 {
-  CERTCertificate *cert,*cert_issuer,*issuer;
+  CERTCertificate *cert, *cert_issuer, *issuer;
   SECStatus res=SECSuccess;
   void *proto_win = NULL;
 
@@ -872,7 +926,7 @@ static SECStatus check_issuer_cert(PRFileDesc *sock,
   */
 
   cert = SSL_PeerCertificate(sock);
-  cert_issuer = CERT_FindCertIssuer(cert,PR_Now(),certUsageObjectSigner);
+  cert_issuer = CERT_FindCertIssuer(cert, PR_Now(), certUsageObjectSigner);
 
   proto_win = SSL_RevealPinArg(sock);
   issuer = PK11_FindCertFromNickname(issuer_nickname, proto_win);
@@ -1245,10 +1299,8 @@ void Curl_nss_close(struct connectdata *conn, int sockindex)
        * authentication data from a previous connection. */
       SSL_InvalidateSession(connssl->handle);
 
-    if(connssl->client_nickname != NULL) {
-      free(connssl->client_nickname);
-      connssl->client_nickname = NULL;
-    }
+    free(connssl->client_nickname);
+    connssl->client_nickname = NULL;
     /* destroy all NSS objects in order to avoid failure of NSS shutdown */
     Curl_llist_destroy(connssl->obj_list, NULL);
     connssl->obj_list = NULL;
@@ -1643,16 +1695,25 @@ static CURLcode nss_setup_connect(struct connectdata *conn, int sockindex)
 #endif
 
 #ifdef SSL_ENABLE_NPN
-  if(data->set.ssl_enable_npn) {
-    if(SSL_OptionSet(connssl->handle, SSL_ENABLE_NPN, PR_TRUE) != SECSuccess)
-      goto error;
-  }
+  if(SSL_OptionSet(connssl->handle, SSL_ENABLE_NPN, data->set.ssl_enable_npn
+        ? PR_TRUE : PR_FALSE) != SECSuccess)
+    goto error;
 #endif
 
 #ifdef SSL_ENABLE_ALPN
-  if(data->set.ssl_enable_alpn) {
-    if(SSL_OptionSet(connssl->handle, SSL_ENABLE_ALPN, PR_TRUE)
+  if(SSL_OptionSet(connssl->handle, SSL_ENABLE_ALPN, data->set.ssl_enable_alpn
+        ? PR_TRUE : PR_FALSE) != SECSuccess)
+    goto error;
+#endif
+
+#ifdef SSL_ENABLE_FALSE_START
+  if(data->set.ssl.falsestart) {
+    if(SSL_OptionSet(connssl->handle, SSL_ENABLE_FALSE_START, PR_TRUE)
         != SECSuccess)
+      goto error;
+
+    if(SSL_SetCanFalseStartCallback(connssl->handle, CanFalseStartCallback,
+        conn) != SECSuccess)
       goto error;
   }
 #endif
@@ -1736,7 +1797,7 @@ static CURLcode nss_do_connect(struct connectdata *conn, int sockindex)
     }
 
     if(SECFailure == ret) {
-      infof(data,"SSL certificate issuer check failed\n");
+      infof(data, "SSL certificate issuer check failed\n");
       result = CURLE_SSL_ISSUER_ERROR;
       goto error;
     }
@@ -1928,6 +1989,14 @@ void Curl_nss_md5sum(unsigned char *tmp, /* input */
 bool Curl_nss_cert_status_request(void)
 {
 #ifdef SSL_ENABLE_OCSP_STAPLING
+  return TRUE;
+#else
+  return FALSE;
+#endif
+}
+
+bool Curl_nss_false_start(void) {
+#ifdef SSL_ENABLE_FALSE_START
   return TRUE;
 #else
   return FALSE;

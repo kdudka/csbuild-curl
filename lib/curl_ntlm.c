@@ -41,7 +41,6 @@
 #include "curl_ntlm_wb.h"
 #include "curl_sasl.h"
 #include "url.h"
-#include "curl_memory.h"
 #include "curl_printf.h"
 
 #if defined(USE_NSS)
@@ -50,7 +49,8 @@
 #include "curl_sspi.h"
 #endif
 
-/* The last #include file should be: */
+/* The last #include files should be: */
+#include "curl_memory.h"
 #include "memdebug.h"
 
 #if DEBUG_ME
@@ -173,7 +173,7 @@ CURLcode Curl_output_ntlm(struct connectdata *conn, bool proxy)
       return result;
 
     if(base64) {
-      Curl_safefree(*allocuserpwd);
+      free(*allocuserpwd);
       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
                               proxy ? "Proxy-" : "",
                               base64);
@@ -193,7 +193,7 @@ CURLcode Curl_output_ntlm(struct connectdata *conn, bool proxy)
       return result;
 
     if(base64) {
-      Curl_safefree(*allocuserpwd);
+      free(*allocuserpwd);
       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
                               proxy ? "Proxy-" : "",
                               base64);
