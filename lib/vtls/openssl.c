@@ -398,15 +398,15 @@ int cert_stuff(struct connectdata *conn,
     }
 
 
-#define SSL_CLIENT_CERT_ERR \
-    "unable to use client certificate (no key found or wrong pass phrase?)"
-
     switch(file_type) {
     case SSL_FILETYPE_PEM:
       /* SSL_CTX_use_certificate_chain_file() only works on PEM files */
       if(SSL_CTX_use_certificate_chain_file(ctx,
                                             cert_file) != 1) {
-        failf(data, SSL_CLIENT_CERT_ERR);
+        failf(data,
+              "could not load PEM client certificate, OpenSSL error %s, "
+              "(no key found, wrong pass phrase, or wrong file format?)",
+              ERR_error_string(ERR_get_error(), NULL) );
         return 0;
       }
       break;
@@ -418,7 +418,10 @@ int cert_stuff(struct connectdata *conn,
       if(SSL_CTX_use_certificate_file(ctx,
                                       cert_file,
                                       file_type) != 1) {
-        failf(data, SSL_CLIENT_CERT_ERR);
+        failf(data,
+              "could not load ASN1 client certificate, OpenSSL error %s, "
+              "(no key found, wrong pass phrase, or wrong file format?)",
+              ERR_error_string(ERR_get_error(), NULL) );
         return 0;
       }
       break;
@@ -493,7 +496,7 @@ int cert_stuff(struct connectdata *conn,
       fclose(f);
 
       if(!p12) {
-        failf(data, "error reading PKCS12 file '%s'", cert_file );
+        failf(data, "error reading PKCS12 file '%s'", cert_file);
         return 0;
       }
 
@@ -511,7 +514,9 @@ int cert_stuff(struct connectdata *conn,
       PKCS12_free(p12);
 
       if(SSL_CTX_use_certificate(ctx, x509) != 1) {
-        failf(data, SSL_CLIENT_CERT_ERR);
+        failf(data,
+              "could not load PKCS12 client certificate, OpenSSL error %s",
+              ERR_error_string(ERR_get_error(), NULL) );
         goto fail;
       }
 
