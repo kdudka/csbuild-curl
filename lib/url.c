@@ -3209,7 +3209,7 @@ ConnectionExists(struct SessionHandle *data,
       }
 
       if((!(needle->handler->flags & PROTOPT_CREDSPERREQUEST)) ||
-         wantNTLMhttp) {
+         (wantNTLMhttp || check->ntlm.state != NTLMSTATE_NONE)) {
         /* This protocol requires credentials per connection or is HTTP+NTLM,
            so verify that we're using the same name and password as well */
         if(!strequal(needle->user, check->user) ||
@@ -3627,7 +3627,7 @@ static void fix_hostname(struct SessionHandle *data,
   host->dispname = host->name;
 
   len = strlen(host->name);
-  if(host->name[len-1] == '.')
+  if(len && (host->name[len-1] == '.'))
     /* strip off a single trailing dot if present, primarily for SNI but
        there's no use for it */
     host->name[len-1]=0;
