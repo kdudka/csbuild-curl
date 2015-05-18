@@ -317,8 +317,7 @@ static int data_pending(const struct connectdata *conn)
        TRUE. The thing is if we read everything, then http2_recv won't
        be called and we cannot signal the HTTP/2 stream has closed. As
        a workaround, we return nonzero here to call http2_recv. */
-    ((conn->handler->protocol&PROTO_FAMILY_HTTP) && conn->httpversion == 20 &&
-     conn->proto.httpc.closed);
+    ((conn->handler->protocol&PROTO_FAMILY_HTTP) && conn->httpversion == 20);
 #else
     Curl_ssl_data_pending(conn, FIRSTSOCKET);
 #endif
@@ -433,6 +432,7 @@ static CURLcode readwrite_data(struct SessionHandle *data,
     else {
       /* read nothing but since we wanted nothing we consider this an OK
          situation to proceed from */
+      DEBUGF(infof(data, "readwrite_data: we're done!\n"));
       nread = 0;
     }
 
@@ -494,7 +494,7 @@ static CURLcode readwrite_data(struct SessionHandle *data,
         /* We've stopped dealing with input, get out of the do-while loop */
 
         if(nread > 0) {
-          if(Curl_multi_pipeline_enabled(conn->data->multi)) {
+          if(Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1)) {
             infof(data,
                   "Rewinding stream by : %zd"
                   " bytes on url %s (zero-length body)\n",
@@ -639,7 +639,7 @@ static CURLcode readwrite_data(struct SessionHandle *data,
           if(dataleft != 0) {
             infof(conn->data, "Leftovers after chunking: %zu bytes\n",
                   dataleft);
-            if(Curl_multi_pipeline_enabled(conn->data->multi)) {
+            if(Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1)) {
               /* only attempt the rewind if we truly are pipelining */
               infof(conn->data, "Rewinding %zu bytes\n",dataleft);
               read_rewind(conn, dataleft);
@@ -662,7 +662,7 @@ static CURLcode readwrite_data(struct SessionHandle *data,
 
         excess = (size_t)(k->bytecount + nread - k->maxdownload);
         if(excess > 0 && !k->ignorebody) {
-          if(Curl_multi_pipeline_enabled(conn->data->multi)) {
+          if(Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1)) {
             /* The 'excess' amount below can't be more than BUFSIZE which
                always will fit in a size_t */
             infof(data,
@@ -1046,6 +1046,11 @@ CURLcode Curl_readwrite(struct connectdata *conn,
   else
     fd_write = CURL_SOCKET_BAD;
 
+  if(conn->data->state.drain) {
+    select_res |= CURL_CSELECT_IN;
+    DEBUGF(infof(data, "%s: forcibly told to drain data\n", __func__));
+  }
+
   if(!select_res) /* Call for select()/poll() only, if read/write/error
                      status is not known. */
     select_res = Curl_socket_ready(fd_read, fd_write, 0);
@@ -1054,6 +1059,9 @@ CURLcode Curl_readwrite(struct connectdata *conn,
     failf(data, "select/poll returned error");
     return CURLE_SEND_ERROR;
   }
+
+  DEBUGF(infof(data, "%s: keepon: %x select_res %x\n", __func__, k->keepon,
+               select_res));
 
   /* We go ahead and do a read if we have a readable socket or if
      the stream was rewound (in which case we have data in a

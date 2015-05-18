@@ -86,6 +86,7 @@
  * Forward declarations.
  */
 
+static CURLcode http_disconnect(struct connectdata *conn, bool dead);
 static int http_getsock_do(struct connectdata *conn,
                            curl_socket_t *socks,
                            int numsocks);
@@ -116,7 +117,7 @@ const struct Curl_handler Curl_handler_http = {
   http_getsock_do,                      /* doing_getsock */
   ZERO_NULL,                            /* domore_getsock */
   ZERO_NULL,                            /* perform_getsock */
-  ZERO_NULL,                            /* disconnect */
+  http_disconnect,                      /* disconnect */
   ZERO_NULL,                            /* readwrite */
   PORT_HTTP,                            /* defport */
   CURLPROTO_HTTP,                       /* protocol */
@@ -140,7 +141,7 @@ const struct Curl_handler Curl_handler_https = {
   http_getsock_do,                      /* doing_getsock */
   ZERO_NULL,                            /* domore_getsock */
   ZERO_NULL,                            /* perform_getsock */
-  ZERO_NULL,                            /* disconnect */
+  http_disconnect,                      /* disconnect */
   ZERO_NULL,                            /* readwrite */
   PORT_HTTPS,                           /* defport */
   CURLPROTO_HTTPS,                      /* protocol */
@@ -153,12 +154,41 @@ CURLcode Curl_http_setup_conn(struct connectdata *conn)
 {
   /* allocate the HTTP-specific struct for the SessionHandle, only to survive
      during this request */
+  struct HTTP *http;
   DEBUGASSERT(conn->data->req.protop == NULL);
 
-  conn->data->req.protop = calloc(1, sizeof(struct HTTP));
-  if(!conn->data->req.protop)
+  http = calloc(1, sizeof(struct HTTP));
+  if(!http)
     return CURLE_OUT_OF_MEMORY;
 
+  conn->data->req.protop = http;
+
+  http->nread_header_recvbuf = 0;
+  http->bodystarted = FALSE;
+  http->status_code = -1;
+  http->pausedata = NULL;
+  http->pauselen = 0;
+  http->error_code = NGHTTP2_NO_ERROR;
+  http->closed = FALSE;
+
+  /* where to store incoming data for this stream and how big the buffer is */
+  http->mem = conn->data->state.buffer;
+  http->len = BUFSIZE;
+  http->memlen = 0;
+
+  Curl_http2_setup_conn(conn);
+
+  return CURLE_OK;
+}
+
+static CURLcode http_disconnect(struct connectdata *conn, bool dead_connection)
+{
+  struct HTTP *http = conn->data->req.protop;
+  (void)dead_connection;
+  if(http) {
+    Curl_add_buffer_free(http->header_recvbuf);
+    http->header_recvbuf = NULL; /* clear the pointer */
+  }
   return CURLE_OK;
 }
 
@@ -1027,6 +1057,16 @@ Curl_send_buffer *Curl_add_buffer_init(void)
 }
 
 /*
+ * Curl_add_buffer_free() frees all associated resources.
+ */
+void Curl_add_buffer_free(Curl_send_buffer *buff)
+{
+  if(buff) /* deal with NULL input */
+    free(buff->buffer);
+  free(buff);
+}
+
+/*
  * Curl_add_buffer_send() sends a header buffer and frees all associated
  * memory.  Body data may be appended to the header data if desired.
  *
@@ -1072,8 +1112,7 @@ CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
   /* Curl_convert_to_network calls failf if unsuccessful */
   if(result) {
     /* conversion failed, free memory and return to the caller */
-    free(in->buffer);
-    free(in);
+    Curl_add_buffer_free(in);
     return result;
   }
 
@@ -1172,11 +1211,10 @@ CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
         */
         return CURLE_SEND_ERROR;
       else
-        conn->writechannel_inuse = FALSE;
+        Curl_pipeline_leave_write(conn);
     }
   }
-  free(in->buffer);
-  free(in);
+  Curl_add_buffer_free(in);
 
   return result;
 }
@@ -1455,11 +1493,14 @@ CURLcode Curl_http_done(struct connectdata *conn,
     return CURLE_OK;
 
   if(http->send_buffer) {
-    Curl_send_buffer *buff = http->send_buffer;
-
-    free(buff->buffer);
-    free(buff);
+    Curl_add_buffer_free(http->send_buffer);
     http->send_buffer = NULL; /* clear the pointer */
+  }
+
+  if(http->header_recvbuf) {
+    DEBUGF(infof(data, "free header_recvbuf!!\n"));
+    Curl_add_buffer_free(http->header_recvbuf);
+    http->header_recvbuf = NULL; /* clear the pointer */
   }
 
   if(HTTPREQ_POST_FORM == data->set.httpreq) {
@@ -3332,28 +3373,23 @@ CURLcode Curl_http_readwrite_headers(struct SessionHandle *data,
         }
         else if(conn->httpversion == 20 ||
                 (k->upgr101 == UPGR101_REQUESTED && k->httpcode == 101)) {
-          /* Don't enable pipelining for HTTP/2 or upgraded connection. For
-             HTTP/2, we do not support multiplexing. In general, requests
-             cannot be pipelined in upgraded connection, since it is now
-             different protocol. */
-          DEBUGF(infof(data,
-                       "HTTP 2 or upgraded connection do not support "
-                       "pipelining for now\n"));
+          DEBUGF(infof(data, "HTTP/2 found, allow multiplexing\n"));
+
+          /* HTTP/2 cannot blacklist multiplexing since it is a core
+             functionality of the protocol */
+          conn->bundle->multiuse = BUNDLE_MULTIPLEX;
         }
         else if(conn->httpversion >= 11 &&
                 !conn->bits.close) {
-          struct connectbundle *cb_ptr;
-
           /* If HTTP version is >= 1.1 and connection is persistent
              server supports pipelining. */
           DEBUGF(infof(data,
                        "HTTP 1.1 or later with persistent connection, "
                        "pipelining supported\n"));
           /* Activate pipelining if needed */
-          cb_ptr = conn->bundle;
-          if(cb_ptr) {
+          if(conn->bundle) {
             if(!Curl_pipeline_site_blacklisted(data, conn))
-              cb_ptr->server_supports_pipelining = TRUE;
+              conn->bundle->multiuse = BUNDLE_PIPELINING;
           }
         }
 
@@ -3432,14 +3468,17 @@ CURLcode Curl_http_readwrite_headers(struct SessionHandle *data,
       }
     }
     else if(checkprefix("Server:", k->p)) {
-      char *server_name = Curl_copy_header_value(k->p);
+      if(conn->httpversion < 20) {
+        /* only do this for non-h2 servers */
+        char *server_name = Curl_copy_header_value(k->p);
 
-      /* Turn off pipelining if the server version is blacklisted */
-      if(conn->bundle && conn->bundle->server_supports_pipelining) {
-        if(Curl_pipeline_server_blacklisted(data, server_name))
-          conn->bundle->server_supports_pipelining = FALSE;
+        /* Turn off pipelining if the server version is blacklisted  */
+        if(conn->bundle && (conn->bundle->multiuse == BUNDLE_PIPELINING)) {
+          if(Curl_pipeline_server_blacklisted(data, server_name))
+            conn->bundle->multiuse = BUNDLE_NO_MULTIUSE;
+        }
+        free(server_name);
       }
-      free(server_name);
     }
     else if((conn->httpversion == 10) &&
             conn->bits.httpproxy &&

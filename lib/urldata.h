@@ -516,11 +516,6 @@ struct ConnectBits {
                          requests */
   bool netrc;         /* name+password provided by netrc */
   bool userpwd_in_url; /* name+password found in url */
-
-  bool done;          /* set to FALSE when Curl_do() is called and set to TRUE
-                         when Curl_done() is called, to prevent Curl_done() to
-                         get invoked twice when the multi interface is
-                         used. */
   bool stream_was_rewound; /* Indicates that the stream was rewound after a
                               request read past the end of its response byte
                               boundary */
@@ -530,6 +525,7 @@ struct ConnectBits {
   bool bound; /* set true if bind() has already been done on this socket/
                  connection */
   bool type_set;  /* type= was used in the URL */
+  bool multiplex; /* connection is multiplexed */
 };
 
 struct hostname {
@@ -1309,6 +1305,13 @@ struct UrlState {
 
   curl_off_t infilesize; /* size of file to upload, -1 means unknown.
                             Copied from set.filesize at start of operation */
+
+  int drain; /* Increased when this stream has data to read, even if its
+                socket not necessarily is readable. Decreased when
+                checked. */
+  bool done; /* set to FALSE when Curl_do() is called and set to TRUE when
+                Curl_done() is called, to prevent Curl_done() to get invoked
+                twice when the multi interface is used. */
 };
 
 
@@ -1620,6 +1623,8 @@ struct UserDefined {
   bool ssl_enable_npn;  /* TLS NPN extension? */
   bool ssl_enable_alpn; /* TLS ALPN extension? */
   bool path_as_is;      /* allow dotdots? */
+  bool pipewait;        /* wait for pipe/multiplex status before starting a
+                           new connection */
   long expect_100_timeout; /* in milliseconds */
 };
 
