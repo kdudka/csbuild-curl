@@ -94,7 +94,12 @@ CURLcode Curl_sspi_global_init(void)
       securityDll = TRUE;
 #else
     ULONGLONG cm;
-    OSVERSIONINFOEX osver = { sizeof osver, majorVersion, 0, 0, platformId, };
+    OSVERSIONINFOEX osver;
+
+    memset(&osver, 0, sizeof(osver));
+    osver.dwOSVersionInfoSize = sizeof(osver);
+    osver.dwMajorVersion = majorVersion;
+    osver.dwPlatformId = platformId;
 
     cm = VerSetConditionMask(0, VER_MAJORVERSION, VER_EQUAL);
     cm = VerSetConditionMask(cm, VER_MINORVERSION, VER_GREATER_EQUAL);
@@ -219,7 +224,7 @@ CURLcode Curl_create_sspi_identity(const char *userp, const char *passwdp,
 
   Curl_unicodefree(useranddomain.tchar_ptr);
 
-  /* Setup ntlm identity's password and length */
+  /* Setup the identity's password and length */
   passwd.tchar_ptr = Curl_convert_UTF8_to_tchar((char *)passwdp);
   if(!passwd.tchar_ptr)
     return CURLE_OUT_OF_MEMORY;
