@@ -47,13 +47,13 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
   rem When not found the variable is set undefined. The undefined pattern
   rem allows for statements like "if not defined HAVE_PERL (command)"
   groff --version <NUL 1>NUL 2>&1
-  if %ERRORLEVEL% EQU 0 (set HAVE_GROFF=Y) else (set HAVE_GROFF=)
+  if %ERRORLEVEL% equ 0 (set HAVE_GROFF=Y) else (set HAVE_GROFF=)
   nroff --version <NUL 1>NUL 2>&1
-  if %ERRORLEVEL% EQU 0 (set HAVE_NROFF=Y) else (set HAVE_NROFF=)
+  if %ERRORLEVEL% equ 0 (set HAVE_NROFF=Y) else (set HAVE_NROFF=)
   perl --version <NUL 1>NUL 2>&1
-  if %ERRORLEVEL% EQU 0 (set HAVE_PERL=Y) else (set HAVE_PERL=)
+  if %ERRORLEVEL% equ 0 (set HAVE_PERL=Y) else (set HAVE_PERL=)
   gzip --version <NUL 1>NUL 2>&1
-  if %ERRORLEVEL% EQU 0 (set HAVE_GZIP=Y) else (set HAVE_GZIP=)
+  if %ERRORLEVEL% equ 0 (set HAVE_GZIP=Y) else (set HAVE_GZIP=)
 
   rem Display the help
   if /i "%~1" == "-?" goto syntax
@@ -93,10 +93,10 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
     echo.
     echo Generating prerequisite files
     call :gen_curlbuild
-    if errorlevel 1 goto error
+    if errorlevel 1 goto nogencurlbuild
     call :gen_hugehelp
-    if errorlevel 1 goto error
-  ) else (
+    if errorlevel 1 goto nogenhugehelp
+  ) else if "%VERSION%" == "ALL" (
     echo.
     echo Removing prerequisite files
     call :clean ..\include\curl\curlbuild.h
@@ -436,7 +436,6 @@ rem Returns exit code 0 on success or 1 on failure.
   )
   findstr "/C:void hugehelp(void)" ..\src\tool_hugehelp.c 1>NUL 2>&1
   if %ERRORLEVEL% neq 0 (
-    echo Error: Unable to generate ..\src\tool_hugehelp.c
     exit /B 1
   )
   exit /B 0
@@ -448,7 +447,6 @@ rem Returns exit code 0 on success or 1 on failure.
   echo * %CD%\..\include\curl\curlbuild.h
   copy /y ..\include\curl\curlbuild.h.dist ..\include\curl\curlbuild.h 1>NUL
   if %ERRORLEVEL% neq 0 (
-    echo Error: Unable to generate ..\include\curl\curlbuild.h
     exit /B 1
   )
   exit /B 0
@@ -486,6 +484,16 @@ rem Returns exit code 0 on success or 1 on failure.
 :nonetdrv
   echo.
   echo Error: This batch file cannot run from a network drive
+  goto error
+
+:nogencurlbuild
+  echo.
+  echo Error: Unable to generate ..\include\curl\curlbuild.h
+  goto error
+
+:nogenhugehelp
+  echo.
+  echo Error: Unable to generate ..\src\tool_hugehelp.c
   goto error
 
 :seterr
