@@ -37,34 +37,99 @@ rem snapshot archives.
 
   if not exist GIT-INFO goto nogitinfo
 
+  rem Set our variables
+  setlocal
+  set MODE=GENERATE
+
+:parseArgs
+  if "%~1" == "" goto start
+
+  if /i "%~1" == "-clean" (
+    set MODE=CLEAN
+  ) else (
+    goto unknown
+  )
+
+  shift & goto parseArgs
+
 :start
-rem create tool_hugehelp.c
-if not exist src\tool_hugehelp.c.cvs goto end_hugehelp_c
-copy /Y src\tool_hugehelp.c.cvs src\tool_hugehelp.c
-:end_hugehelp_c
+  if "%MODE%" == "GENERATE" (
+    call :generate
+  ) else (
+    call :clean
+  )
 
-rem create Makefile
-if not exist Makefile.dist goto end_makefile
-copy /Y Makefile.dist Makefile
-:end_makefile
+  goto success
 
-rem create curlbuild.h
-if not exist include\curl\curlbuild.h.dist goto end_curlbuild_h
-copy /Y include\curl\curlbuild.h.dist include\curl\curlbuild.h
-:end_curlbuild_h
+rem Main generate function.
+rem
+:generate
+  echo.
+  echo Generating prerequisite files
 
-rem setup c-ares git tree
-if not exist ares\buildconf.bat goto end_c_ares
-cd ares
-call buildconf.bat
-cd ..
-:end_c_ares
-goto success
+  rem create tool_hugehelp.c
+  if exist src\tool_hugehelp.c.cvs (
+    echo * %CD%\src\tool_hugehelp.c
+    copy /Y src\tool_hugehelp.c.cvs src\tool_hugehelp.c 1>NUL
+  )
+
+  rem create Makefile
+  if exist Makefile.dist (
+    echo * %CD%\Makefile
+    copy /Y Makefile.dist Makefile 1>NUL
+  )
+
+  rem create curlbuild.h
+  if exist include\curl\curlbuild.h.dist (
+    echo * %CD%\include\curl\curlbuild.h
+    copy /Y include\curl\curlbuild.h.dist include\curl\curlbuild.h 1>NUL
+  )
+
+  rem setup c-ares git tree
+  if exist ares\buildconf.bat (
+    echo.
+    echo Configuring c-ares build environment
+    cd ares
+    call buildconf.bat
+    cd ..
+  )
+
+  exit /B
+
+rem Main clean function.
+rem
+:clean
+  echo.
+  echo Removing prerequisite files
+
+  echo * %CD%\Makefile
+  if exist Makefile (
+    del Makefile
+  )
+
+  echo * %CD%\src\tool_hugehelp.c
+  if exist src\tool_hugehelp.c (
+    del src\tool_hugehelp.c
+  )
+
+  echo * %CD%\include\curl\curlbuild.h
+  if exist include\curl\curlbuild.h (
+    del include\curl\curlbuild.h
+  )
+
+  exit /B
 
 :syntax
   rem Display the help
   echo.
-  echo Usage: buildconf
+  echo Usage: buildconf [-clean]
+  echo.
+  echo -clean    - Removes the files
+  goto error
+
+:unknown
+  echo.
+  echo Error: Unknown argument '%1'
   goto error
 
 :nogitinfo
