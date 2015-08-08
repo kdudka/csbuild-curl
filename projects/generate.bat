@@ -32,6 +32,11 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
   rem Check we are running on a Windows NT derived OS
   if not "%OS%" == "Windows_NT" goto nodos
 
+  rem Set our variables
+  setlocal ENABLEEXTENSIONS
+  set VERSION=ALL
+  set MODE=GENERATE
+
   rem Check we are not running on a network drive
   if "%~d0."=="\\." goto nonetdrv
 
@@ -40,11 +45,6 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
 
   rem Check we are running from a curl git repository
   if not exist ..\GIT-INFO goto norepo
-
-  rem Set our variables
-  setlocal ENABLEEXTENSIONS
-  set VERSION=ALL
-  set MODE=GENERATE
 
   rem Detect programs. HAVE_<PROGNAME>
   rem When not found the variable is set undefined. The undefined pattern
@@ -57,11 +57,6 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
   if %ERRORLEVEL% equ 0 (set HAVE_PERL=Y) else (set HAVE_PERL=)
   gzip --version <NUL 1>NUL 2>&1
   if %ERRORLEVEL% equ 0 (set HAVE_GZIP=Y) else (set HAVE_GZIP=)
-
-  rem Display the help
-  if /i "%~1" == "-?" goto syntax
-  if /i "%~1" == "-h" goto syntax
-  if /i "%~1" == "-help" goto syntax
 
 :parseArgs
   if "%~1" == "" goto start
@@ -86,6 +81,12 @@ rem If you need to set the errorlevel do this instead: CALL :seterr [#]
     set VERSION=VC14
   ) else if /i "%~1" == "-clean" (
     set MODE=CLEAN
+  ) else if /i "%~1" == "-?" (
+    goto syntax
+  ) else if /i "%~1" == "-h" (
+    goto syntax
+  ) else if /i "%~1" == "-help" (
+    goto syntax
   ) else (
     goto unknown
   )
@@ -514,7 +515,7 @@ rem Returns exit code 0 on success or 1 on failure.
   exit /b %EXITCODE%
 
 :error
-  endlocal
+  if "%OS%" == "Windows_NT" endlocal
   exit /B 1
 
 :success

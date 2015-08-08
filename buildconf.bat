@@ -30,10 +30,9 @@ rem This file is not included or required for curl's release archives or daily
 rem snapshot archives.
 
 :begin
-  rem Display the help
-  if /i "%~1" == "-?" goto syntax
-  if /i "%~1" == "-h" goto syntax
-  if /i "%~1" == "-help" goto syntax
+  rem Set our variables
+  setlocal
+  set MODE=GENERATE
 
   rem Switch to this batch file's directory
   cd /d "%~0\.." 1>NUL 2>&1
@@ -41,15 +40,17 @@ rem snapshot archives.
   rem Check we are running from a curl git repository
   if not exist GIT-INFO goto norepo
 
-  rem Set our variables
-  setlocal
-  set MODE=GENERATE
-
 :parseArgs
   if "%~1" == "" goto start
 
   if /i "%~1" == "-clean" (
     set MODE=CLEAN
+  ) else if /i "%~1" == "-?" (
+    goto syntax
+  ) else if /i "%~1" == "-h" (
+    goto syntax
+  ) else if /i "%~1" == "-help" (
+    goto syntax
   ) else (
     goto unknown
   )
