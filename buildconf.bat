@@ -189,7 +189,7 @@ rem
     del include\curl\curlbuild.h 2>NUL
     if exist include\curl\curlbuild.h (
       exit /B 3
-    /)
+    )
   )
 
   exit /B
@@ -333,7 +333,6 @@ rem
   echo the manual is not required and a summary of the options will still be available
   echo (curl --help^). To integrate the manual your PATH is required to have
   echo groff/nroff, perl and optionally gzip for compression.
-  echo.
   goto success
 
 :error
