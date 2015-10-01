@@ -6,6 +6,7 @@ sudo: false
 
 language: c
 compiler: gcc
+sudo: required
 
 before_install:
     - sudo apt-get update -qq
