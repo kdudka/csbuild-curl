@@ -72,12 +72,12 @@ static int  entropy_init_initialized  = 0;
 static void entropy_init_mutex(mbedtls_entropy_context *ctx)
 {
   /* lock 0 = entropy_init_mutex() */
-  polarsslthreadlock_lock_function(0);
+  Curl_polarsslthreadlock_lock_function(0);
   if(entropy_init_initialized == 0) {
     mbedtls_entropy_init(ctx);
     entropy_init_initialized = 1;
   }
-  polarsslthreadlock_unlock_function(0);
+  Curl_polarsslthreadlock_unlock_function(0);
 }
 /* end of entropy_init_mutex() */
 
@@ -86,9 +86,9 @@ static int entropy_func_mutex(void *data, unsigned char *output, size_t len)
 {
   int ret;
   /* lock 1 = entropy_func_mutex() */
-  polarsslthreadlock_lock_function(1);
+  Curl_polarsslthreadlock_lock_function(1);
   ret = mbedtls_entropy_func(data, output, len);
-  polarsslthreadlock_unlock_function(1);
+  Curl_polarsslthreadlock_unlock_function(1);
 
   return ret;
 }
@@ -173,15 +173,17 @@ mbedtls_connect_step1(struct connectdata *conn,
 
 #ifdef THREADING_SUPPORT
   entropy_init_mutex(&entropy);
+  mbedtls_ctr_drbg_init(&connssl->ctr_drbg);
 
-  if((ret = mbedtls_ctr_drbg_init(&connssl->ctr_drbg, entropy_func_mutex,
-                                  &entropy, connssl->ssn.id,
-                                  connssl->ssn.length)) != 0) {
+  ret = mbedtls_ctr_drbg_seed(&connssl->ctr_drbg, entropy_func_mutex,
+                              &entropy, connssl->ssn.id,
+                              connssl->ssn.id_len);
+  if(ret) {
 #ifdef MBEDTLS_ERROR_C
-     mbedtls_strerror(ret, errorbuf, sizeof(errorbuf));
+    mbedtls_strerror(ret, errorbuf, sizeof(errorbuf));
 #endif /* MBEDTLS_ERROR_C */
-     failf(data, "Failed - mbedTLS: ctr_drbg_init returned (-0x%04X) %s\n",
-                                                            -ret, errorbuf);
+    failf(data, "Failed - mbedTLS: ctr_drbg_init returned (-0x%04X) %s\n",
+          -ret, errorbuf);
   }
 #else
   mbedtls_entropy_init(&connssl->entropy);
@@ -763,12 +765,12 @@ Curl_mbedtls_connect(struct connectdata *conn,
  */
 int mbedtls_init(void)
 {
-  return polarsslthreadlock_thread_setup();
+  return Curl_polarsslthreadlock_thread_setup();
 }
 
 void mbedtls_cleanup(void)
 {
-  (void)polarsslthreadlock_thread_cleanup();
+  (void)Curl_polarsslthreadlock_thread_cleanup();
 }
 
 #endif /* USE_MBEDTLS */
