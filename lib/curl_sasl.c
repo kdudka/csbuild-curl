@@ -24,6 +24,7 @@
  * RFC4422 Simple Authentication and Security Layer (SASL)
  * RFC4616 PLAIN authentication
  * RFC6749 OAuth 2.0 Authorization Framework
+ * RFC7628 A Set of SASL Mechanisms for OAuth
  * Draft   LOGIN SASL Mechanism <draft-murchison-sasl-login-00.txt>
  *
  ***************************************************************************/
@@ -1153,7 +1154,7 @@ void Curl_sasl_ntlm_cleanup(struct ntlmdata *ntlm)
 #endif /* USE_NTLM && !USE_WINDOWS_SSPI*/
 
 /*
- * sasl_create_xoauth2_message()
+ * sasl_create_oauth_bearer_message()
  *
  * This is used to generate an already encoded OAuth 2.0 message ready for
  * sending to the recipient.
@@ -1169,10 +1170,10 @@ void Curl_sasl_ntlm_cleanup(struct ntlmdata *ntlm)
  *
  * Returns CURLE_OK on success.
  */
-static CURLcode sasl_create_xoauth2_message(struct SessionHandle *data,
-                                            const char *user,
-                                            const char *bearer,
-                                            char **outptr, size_t *outlen)
+static CURLcode sasl_create_oauth_bearer_message(struct SessionHandle *data,
+                                                 const char *user,
+                                                 const char *bearer,
+                                                 char **outptr, size_t *outlen)
 {
   CURLcode result = CURLE_OK;
   char *xoauth = NULL;
@@ -1443,15 +1444,15 @@ CURLcode Curl_sasl_start(struct SASL *sasl, struct connectdata *conn,
       }
     else
 #endif
-    if((enabledmechs & SASL_MECH_XOAUTH2) || conn->xoauth2_bearer) {
+    if((enabledmechs & SASL_MECH_XOAUTH2) || conn->oauth_bearer) {
       mech = SASL_MECH_STRING_XOAUTH2;
       state1 = SASL_XOAUTH2;
       sasl->authused = SASL_MECH_XOAUTH2;
 
       if(force_ir || data->set.sasl_ir)
-        result = sasl_create_xoauth2_message(data, conn->user,
-                                             conn->xoauth2_bearer,
-                                             &resp, &len);
+        result = sasl_create_oauth_bearer_message(data, conn->user,
+                                                  conn->oauth_bearer,
+                                                  &resp, &len);
     }
     else if(enabledmechs & SASL_MECH_LOGIN) {
       mech = SASL_MECH_STRING_LOGIN;
@@ -1628,8 +1629,8 @@ CURLcode Curl_sasl_continue(struct SASL *sasl, struct connectdata *conn,
 
   case SASL_XOAUTH2:
     /* Create the authorisation message */
-    result = sasl_create_xoauth2_message(data, conn->user,
-                                         conn->xoauth2_bearer, &resp, &len);
+    result = sasl_create_oauth_bearer_message(data, conn->user,
+                                              conn->oauth_bearer, &resp, &len);
     break;
   case SASL_CANCEL:
     /* Remove the offending mechanism from the supported list */
