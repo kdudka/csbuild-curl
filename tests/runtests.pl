@@ -199,8 +199,8 @@ my $valgrind_tool;
 my $gdb = checktestcmd("gdb");
 my $httptlssrv = find_httptlssrv();
 
-my $ssl_version;    # set if libcurl is built with SSL support
-my $large_file;     # set if libcurl is built with large file support
+my $has_ssl;        # set if libcurl is built with SSL support
+my $has_largefile;  # set if libcurl is built with large file support
 my $has_idn;        # set if libcurl is built with IDN support
 my $http_ipv6;      # set if HTTP server has IPv6 support
 my $http_unix;      # set if HTTP server has Unix sockets support
@@ -2411,11 +2411,11 @@ sub checksystem {
             }
             if($feat =~ /SSL/i) {
                 # ssl enabled
-                $ssl_version=1;
+                $has_ssl=1;
             }
             if($feat =~ /Largefile/i) {
                 # large file support
-                $large_file=1;
+                $has_largefile=1;
             }
             if($feat =~ /IDN/i) {
                 # IDN support
@@ -2595,73 +2595,66 @@ sub checksystem {
                "*\n");
     }
 
-    logmsg sprintf("* Server SSL:   %8s", $stunnel?"ON ":"OFF");
-    logmsg sprintf("  libcurl SSL:  %s\n", $ssl_version?"ON ":"OFF");
-    logmsg sprintf("* debug build:  %8s", $debug_build?"ON ":"OFF");
-    logmsg sprintf("  track memory: %s\n", $has_memory_tracking?"ON ":"OFF");
-    logmsg sprintf("* valgrind:     %8s", $valgrind?"ON ":"OFF");
-    logmsg sprintf("  HTTP IPv6     %s\n", $http_ipv6?"ON ":"OFF");
-    logmsg sprintf("* HTTP Unix     %s\n", $http_unix?"ON ":"OFF");
-    logmsg sprintf("* FTP IPv6      %8s", $ftp_ipv6?"ON ":"OFF");
-    logmsg sprintf("  Libtool lib:  %s\n", $libtool?"ON ":"OFF");
-    logmsg sprintf("* PSL:          %8s", $has_psl?"ON ":"OFF");
-    logmsg sprintf("  Resolver:     %s\n", $resolver);
+    logmsg sprintf("* Servers: %s", $stunnel?"SSL ":"");
+    logmsg sprintf("%s", $http_ipv6?"HTTP-IPv6 ":"");
+    logmsg sprintf("%s", $http_unix?"HTTP-unix ":"");
+    logmsg sprintf("%s\n", $ftp_ipv6?"FTP-IPv6 ":"OFF");
 
-    if($ssl_version) {
-        logmsg sprintf("* SSL library: %13s\n", $ssllib);
-    }
+    logmsg sprintf("* Env: %s", $valgrind?"Valgrind ":"");
+    logmsg sprintf("%s\n", $libtool?"Libtool ":"");
 
-    logmsg "* Ports:\n";
+    if($verbose) {
+        logmsg "* Ports:\n";
 
-    logmsg sprintf("*   HTTP/%d ", $HTTPPORT);
-    logmsg sprintf("FTP/%d ", $FTPPORT);
-    logmsg sprintf("FTP2/%d ", $FTP2PORT);
-    logmsg sprintf("RTSP/%d ", $RTSPPORT);
-    if($stunnel) {
-        logmsg sprintf("FTPS/%d ", $FTPSPORT);
-        logmsg sprintf("HTTPS/%d ", $HTTPSPORT);
-    }
-    logmsg sprintf("\n*   TFTP/%d ", $TFTPPORT);
-    if($http_ipv6) {
-        logmsg sprintf("HTTP-IPv6/%d ", $HTTP6PORT);
-        logmsg sprintf("RTSP-IPv6/%d ", $RTSP6PORT);
-    }
-    if($ftp_ipv6) {
-        logmsg sprintf("FTP-IPv6/%d ", $FTP6PORT);
-    }
-    if($tftp_ipv6) {
-        logmsg sprintf("TFTP-IPv6/%d ", $TFTP6PORT);
-    }
-    logmsg sprintf("\n*   GOPHER/%d ", $GOPHERPORT);
-    if($gopher_ipv6) {
-        logmsg sprintf("GOPHER-IPv6/%d", $GOPHERPORT);
-    }
-    logmsg sprintf("\n*   SSH/%d ", $SSHPORT);
-    logmsg sprintf("SOCKS/%d ", $SOCKSPORT);
-    logmsg sprintf("POP3/%d ", $POP3PORT);
-    logmsg sprintf("IMAP/%d ", $IMAPPORT);
-    logmsg sprintf("SMTP/%d\n", $SMTPPORT);
-    if($ftp_ipv6) {
-        logmsg sprintf("*   POP3-IPv6/%d ", $POP36PORT);
-        logmsg sprintf("IMAP-IPv6/%d ", $IMAP6PORT);
-        logmsg sprintf("SMTP-IPv6/%d\n", $SMTP6PORT);
-    }
-    if($httptlssrv) {
-        logmsg sprintf("*   HTTPTLS/%d ", $HTTPTLSPORT);
-        if($has_ipv6) {
-            logmsg sprintf("HTTPTLS-IPv6/%d ", $HTTPTLS6PORT);
+        logmsg sprintf("*   HTTP/%d ", $HTTPPORT);
+        logmsg sprintf("FTP/%d ", $FTPPORT);
+        logmsg sprintf("FTP2/%d ", $FTP2PORT);
+        logmsg sprintf("RTSP/%d ", $RTSPPORT);
+        if($stunnel) {
+            logmsg sprintf("FTPS/%d ", $FTPSPORT);
+            logmsg sprintf("HTTPS/%d ", $HTTPSPORT);
         }
-        logmsg "\n";
-    }
-    logmsg sprintf("*   HTTP-PIPE/%d \n", $HTTPPIPEPORT);
+        logmsg sprintf("\n*   TFTP/%d ", $TFTPPORT);
+        if($http_ipv6) {
+            logmsg sprintf("HTTP-IPv6/%d ", $HTTP6PORT);
+            logmsg sprintf("RTSP-IPv6/%d ", $RTSP6PORT);
+        }
+        if($ftp_ipv6) {
+            logmsg sprintf("FTP-IPv6/%d ", $FTP6PORT);
+        }
+        if($tftp_ipv6) {
+            logmsg sprintf("TFTP-IPv6/%d ", $TFTP6PORT);
+        }
+        logmsg sprintf("\n*   GOPHER/%d ", $GOPHERPORT);
+        if($gopher_ipv6) {
+            logmsg sprintf("GOPHER-IPv6/%d", $GOPHERPORT);
+        }
+        logmsg sprintf("\n*   SSH/%d ", $SSHPORT);
+        logmsg sprintf("SOCKS/%d ", $SOCKSPORT);
+        logmsg sprintf("POP3/%d ", $POP3PORT);
+        logmsg sprintf("IMAP/%d ", $IMAPPORT);
+        logmsg sprintf("SMTP/%d\n", $SMTPPORT);
+        if($ftp_ipv6) {
+            logmsg sprintf("*   POP3-IPv6/%d ", $POP36PORT);
+            logmsg sprintf("IMAP-IPv6/%d ", $IMAP6PORT);
+            logmsg sprintf("SMTP-IPv6/%d\n", $SMTP6PORT);
+        }
+        if($httptlssrv) {
+            logmsg sprintf("*   HTTPTLS/%d ", $HTTPTLSPORT);
+            if($has_ipv6) {
+                logmsg sprintf("HTTPTLS-IPv6/%d ", $HTTPTLS6PORT);
+            }
+            logmsg "\n";
+        }
+        logmsg sprintf("*   HTTP-PIPE/%d \n", $HTTPPIPEPORT);
 
-    if($has_unix) {
-        logmsg "* Unix socket paths:\n";
-        if($http_unix) {
-            logmsg sprintf("*   HTTP-Unix:%s\n", $HTTPUNIXPATH);
+        if($has_unix) {
+            logmsg "* Unix socket paths:\n";
+            if($http_unix) {
+                logmsg sprintf("*   HTTP-Unix:%s\n", $HTTPUNIXPATH);
+            }
         }
     }
-
     $has_textaware = ($^O eq 'MSWin32') || ($^O eq 'msys');
 
     logmsg "***************************************** \n";
@@ -2858,7 +2851,7 @@ sub singletest {
             $feature{$1} = $1;
 
             if($1 eq "SSL") {
-                if($ssl_version) {
+                if($has_ssl) {
                     next;
                 }
             }
@@ -2913,7 +2906,7 @@ sub singletest {
                 }
             }
             elsif($1 eq "large_file") {
-                if($large_file) {
+                if($has_largefile) {
                     next;
                 }
             }
@@ -3016,7 +3009,7 @@ sub singletest {
 
             if($f =~ /^!(.*)$/) {
                 if($1 eq "SSL") {
-                    if(!$ssl_version) {
+                    if(!$has_ssl) {
                         next;
                     }
                 }
@@ -3056,7 +3049,7 @@ sub singletest {
                     }
                 }
                 elsif($1 eq "large_file") {
-                    if(!$large_file) {
+                    if(!$has_largefile) {
                         next;
                     }
                 }
@@ -4350,7 +4343,7 @@ sub startservers {
                 # we can't run ftps tests without stunnel
                 return "no stunnel";
             }
-            if(!$ssl_version) {
+            if(!$has_ssl) {
                 # we can't run ftps tests if libcurl is SSL-less
                 return "curl lacks SSL support";
             }
@@ -4388,7 +4381,7 @@ sub startservers {
                 # we can't run https tests without stunnel
                 return "no stunnel";
             }
-            if(!$ssl_version) {
+            if(!$has_ssl) {
                 # we can't run https tests if libcurl is SSL-less
                 return "curl lacks SSL support";
             }
