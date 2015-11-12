@@ -1344,7 +1344,7 @@ static void state(struct SASL *sasl, struct connectdata *conn,
     "GSSAPI",
     "GSSAPI_TOKEN",
     "GSSAPI_NO_DATA",
-    "XOAUTH2",
+    "OAUTH2",
     "CANCEL",
     "FINAL",
     /* LAST */
@@ -1455,9 +1455,10 @@ CURLcode Curl_sasl_start(struct SASL *sasl, struct connectdata *conn,
       }
     else
 #endif
-    if((enabledmechs & SASL_MECH_XOAUTH2) || conn->oauth_bearer) {
+    if((enabledmechs & SASL_MECH_XOAUTH2) && ((conn->oauth_bearer) ||
+                                              (!conn->passwd))) {
       mech = SASL_MECH_STRING_XOAUTH2;
-      state1 = SASL_XOAUTH2;
+      state1 = SASL_OAUTH2;
       sasl->authused = SASL_MECH_XOAUTH2;
 
       if(force_ir || data->set.sasl_ir)
@@ -1639,7 +1640,7 @@ CURLcode Curl_sasl_continue(struct SASL *sasl, struct connectdata *conn,
     break;
 #endif
 
-  case SASL_XOAUTH2:
+  case SASL_OAUTH2:
     /* Create the authorisation message */
     result = sasl_create_oauth_bearer_message(data, conn->user,
                                               NULL, 0,
