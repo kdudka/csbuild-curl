@@ -294,21 +294,22 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
 
 /* evaluates to true if option takes a data argument to pass to a callback */
 #define _curl_is_cb_data_option(option)                                       \
-  ((option) == CURLOPT_WRITEDATA ||                                           \
-   (option) == CURLOPT_READDATA ||                                            \
-   (option) == CURLOPT_IOCTLDATA ||                                           \
-   (option) == CURLOPT_SOCKOPTDATA ||                                         \
-   (option) == CURLOPT_OPENSOCKETDATA ||                                      \
-   (option) == CURLOPT_PROGRESSDATA ||                                        \
-   (option) == CURLOPT_HEADERDATA ||                                         \
+  ((option) == CURLOPT_CHUNK_DATA ||                                          \
+   (option) == CURLOPT_CLOSESOCKETDATA ||                                     \
    (option) == CURLOPT_DEBUGDATA ||                                           \
-   (option) == CURLOPT_SSL_CTX_DATA ||                                        \
-   (option) == CURLOPT_SEEKDATA ||                                            \
-   (option) == CURLOPT_PRIVATE ||                                             \
-   (option) == CURLOPT_SSH_KEYDATA ||                                         \
-   (option) == CURLOPT_INTERLEAVEDATA ||                                      \
-   (option) == CURLOPT_CHUNK_DATA ||                                          \
    (option) == CURLOPT_FNMATCH_DATA ||                                        \
+   (option) == CURLOPT_HEADERDATA ||                                          \
+   (option) == CURLOPT_INTERLEAVEDATA ||                                      \
+   (option) == CURLOPT_IOCTLDATA ||                                           \
+   (option) == CURLOPT_OPENSOCKETDATA ||                                      \
+   (option) == CURLOPT_PRIVATE ||                                             \
+   (option) == CURLOPT_PROGRESSDATA ||                                        \
+   (option) == CURLOPT_READDATA ||                                            \
+   (option) == CURLOPT_SEEKDATA ||                                            \
+   (option) == CURLOPT_SOCKOPTDATA ||                                         \
+   (option) == CURLOPT_SSH_KEYDATA ||                                         \
+   (option) == CURLOPT_SSL_CTX_DATA ||                                        \
+   (option) == CURLOPT_WRITEDATA ||                                           \
    0)
 
 /* evaluates to true if option takes a POST data argument (void* or char*) */
@@ -319,13 +320,15 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
 
 /* evaluates to true if option takes a struct curl_slist * argument */
 #define _curl_is_slist_option(option)                                         \
-  ((option) == CURLOPT_HTTPHEADER ||                                          \
-   (option) == CURLOPT_HTTP200ALIASES ||                                      \
-   (option) == CURLOPT_QUOTE ||                                               \
+  ((option) == CURLOPT_HTTP200ALIASES ||                                      \
+   (option) == CURLOPT_HTTPHEADER ||                                          \
+   (option) == CURLOPT_MAIL_RCPT ||                                           \
    (option) == CURLOPT_POSTQUOTE ||                                           \
    (option) == CURLOPT_PREQUOTE ||                                            \
+   (option) == CURLOPT_PROXYHEADER ||                                         \
+   (option) == CURLOPT_QUOTE ||                                               \
+   (option) == CURLOPT_RESOLVE ||                                             \
    (option) == CURLOPT_TELNETOPTIONS ||                                       \
-   (option) == CURLOPT_MAIL_RCPT ||                                           \
    0)
 
 /* groups of curl_easy_getinfo infos that take the same type of argument */
