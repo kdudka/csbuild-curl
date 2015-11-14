@@ -4,9 +4,9 @@
 SMTP
 SASL
 SASL AUTH OAUTH2
-SASL-IR
 RFC4954
 RFC6749
+RFC7628
 </keywords>
 </info>
 
@@ -14,25 +14,26 @@ RFC6749
 # Server-side
 <reply>
 <servercmd>
-AUTH XOAUTH2
-REPLY AUTH 235 Authenticated
+AUTH OAUTHBEARER
+REPLY AUTH 334 OAUTH2BEARER supported
+REPLY dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwNQFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ== 235 Authenticated
 </servercmd>
 </reply>
 
-#
+#vi
 # Client-side
 <client>
 <server>
 smtp
 </server>
  <name>
-SMTP OAuth 2.0 (XOAUTH2) authentication with initial response
+SMTP OAuth 2.0 (OAUTHBEARER) authentication
  </name>
 <stdin>
 mail body
 </stdin>
  <command>
-smtp://%HOSTIP:%SMTPPORT/922 --mail-rcpt recipient@example.com --mail-from sender@example.com -u user --oauth2-bearer mF_9.B5f-4.1JqM --sasl-ir -T -
+smtp://%HOSTIP:%SMTPPORT/946 --mail-rcpt recipient@example.com --mail-from sender@example.com -u user --oauth2-bearer mF_9.B5f-4.1JqM -T -
 </command>
 </client>
 
@@ -40,8 +41,9 @@ smtp://%HOSTIP:%SMTPPORT/922 --mail-rcpt recipient@example.com --mail-from sende
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-EHLO 922
-AUTH XOAUTH2 dXNlcj11c2VyAWF1dGg9QmVhcmVyIG1GXzkuQjVmLTQuMUpxTQEB
+EHLO 946
+AUTH OAUTHBEARER
+dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwNQFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ==
 MAIL FROM:<sender@example.com>
 RCPT TO:<recipient@example.com>
 DATA

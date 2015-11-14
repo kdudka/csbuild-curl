@@ -1,11 +1,14 @@
 <testcase>
 <info>
 <keywords>
-IMAP
+POP3
 SASL
 SASL AUTH OAUTH2
 SASL-IR
+RFC1734
+RFC5034
 RFC6749
+RFC7628
 </keywords>
 </info>
 
@@ -13,9 +16,8 @@ RFC6749
 # Server-side
 <reply>
 <servercmd>
-AUTH XOAUTH2
-CAPA SASL-IR
-REPLY AUTHENTICATE A002 OK AUTHENTICATE completed
+AUTH OAUTHBEARER
+REPLY AUTH +OK Login successful
 </servercmd>
 <data>
 From: me@somewhere
@@ -32,13 +34,13 @@ body
 # Client-side
 <client>
 <server>
-imap
+pop3
 </server>
  <name>
-IMAP OAuth 2.0 (XOAUTH2) authentication with initial response
+POP3 OAuth 2.0 (OAUTHBEARER) authentication with initial response
  </name>
  <command>
-'imap://%HOSTIP:%IMAPPORT/828/;UID=1' -u user --oauth2-bearer mF_9.B5f-4.1JqM
+pop3://%HOSTIP:%POP3PORT/888 -u user --oauth2-bearer mF_9.B5f-4.1JqM --sasl-ir
 </command>
 </client>
 
@@ -46,11 +48,10 @@ IMAP OAuth 2.0 (XOAUTH2) authentication with initial response
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-A001 CAPABILITY
-A002 AUTHENTICATE XOAUTH2 dXNlcj11c2VyAWF1dGg9QmVhcmVyIG1GXzkuQjVmLTQuMUpxTQEB
-A003 SELECT 828
-A004 FETCH 1 BODY[]
-A005 LOGOUT
+CAPA
+AUTH OAUTHBEARER dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwMQFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ==
+RETR 888
+QUIT
 </protocol>
 </verify>
 </testcase>

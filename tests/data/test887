@@ -4,10 +4,10 @@
 POP3
 SASL
 SASL AUTH OAUTH2
-SASL-IR
 RFC1734
 RFC5034
 RFC6749
+RFC7628
 </keywords>
 </info>
 
@@ -15,8 +15,9 @@ RFC6749
 # Server-side
 <reply>
 <servercmd>
-AUTH XOAUTH2
-REPLY AUTH +OK Login successful
+AUTH OAUTHBEARER
+REPLY AUTH +
+REPLY dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwMQFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ== +OK Login successful
 </servercmd>
 <data>
 From: me@somewhere
@@ -36,10 +37,10 @@ body
 pop3
 </server>
  <name>
-POP3 OAuth 2.0 (XOAUTH2) authentication with initial response
+POP3 OAuth 2.0 (OAUTHBEARER) authentication
  </name>
  <command>
-pop3://%HOSTIP:%POP3PORT/874 -u user --oauth2-bearer mF_9.B5f-4.1JqM --sasl-ir
+pop3://%HOSTIP:%POP3PORT/887 -u user --oauth2-bearer mF_9.B5f-4.1JqM
 </command>
 </client>
 
@@ -48,8 +49,9 @@ pop3://%HOSTIP:%POP3PORT/874 -u user --oauth2-bearer mF_9.B5f-4.1JqM --sasl-ir
 <verify>
 <protocol>
 CAPA
-AUTH XOAUTH2 dXNlcj11c2VyAWF1dGg9QmVhcmVyIG1GXzkuQjVmLTQuMUpxTQEB
-RETR 874
+AUTH OAUTHBEARER
+dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwMQFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ==
+RETR 887
 QUIT
 </protocol>
 </verify>

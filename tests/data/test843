@@ -6,6 +6,7 @@ SASL
 SASL AUTH OAUTH2
 SASL-IR
 RFC6749
+RFC7628
 </keywords>
 </info>
 
@@ -13,7 +14,7 @@ RFC6749
 # Server-side
 <reply>
 <servercmd>
-AUTH XOAUTH2
+AUTH OAUTHBEARER
 CAPA SASL-IR
 REPLY AUTHENTICATE A002 OK AUTHENTICATE completed
 </servercmd>
@@ -35,10 +36,10 @@ body
 imap
 </server>
  <name>
-IMAP OAuth 2.0 (XOAUTH2) authentication with initial response
+IMAP OAuth 2.0 (OAUTH2BEARER) authentication with initial response
  </name>
  <command>
-'imap://%HOSTIP:%IMAPPORT/828/;UID=1' -u user --oauth2-bearer mF_9.B5f-4.1JqM
+'imap://%HOSTIP:%IMAPPORT/843/;UID=1' -u user --oauth2-bearer mF_9.B5f-4.1JqM
 </command>
 </client>
 
@@ -47,8 +48,8 @@ IMAP OAuth 2.0 (XOAUTH2) authentication with initial response
 <verify>
 <protocol>
 A001 CAPABILITY
-A002 AUTHENTICATE XOAUTH2 dXNlcj11c2VyAWF1dGg9QmVhcmVyIG1GXzkuQjVmLTQuMUpxTQEB
-A003 SELECT 828
+A002 AUTHENTICATE OAUTHBEARER dXNlcj11c2VyAWhvc3Q9MTI3LjAuMC4xAXBvcnQ9OTAwMwFhdXRoPUJlYXJlciBtRl85LkI1Zi00LjFKcU0BAQ==
+A003 SELECT 843
 A004 FETCH 1 BODY[]
 A005 LOGOUT
 </protocol>
