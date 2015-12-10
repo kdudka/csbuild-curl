@@ -119,6 +119,12 @@
 #define OPENSSL_NO_SSL2
 #endif
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L /* 1.1.0+ removed "SSLeay"  */
+#define SSLeay_add_ssl_algorithms() SSL_library_init()
+#define SSLeay() OpenSSL_version_num()
+#define SSLEAY_VERSION_NUMBER OPENSSL_VERSION_NUMBER
+#endif
+
 #if defined(OPENSSL_IS_BORINGSSL)
 #define NO_RAND_SEED 1
 /* In BoringSSL OpenSSL_add_all_algorithms does nothing */
@@ -2211,7 +2217,8 @@ static int asn1_object_dump(ASN1_OBJECT *a, char *buf, size_t len)
 do {                              \
   long info_len = BIO_get_mem_data(mem, &ptr); \
   Curl_ssl_push_certinfo_len(data, _num, _label, ptr, info_len); \
-  BIO_reset(mem); \
+  if(1!=BIO_reset(mem))                                          \
+    break;                                                       \
 } WHILE_FALSE
 
 static void pubkey_show(struct SessionHandle *data,
@@ -2514,12 +2521,12 @@ static CURLcode servercert(struct connectdata *conn,
   ASN1_TIME_print(mem, X509_get_notBefore(connssl->server_cert));
   len = BIO_get_mem_data(mem, (char **) &ptr);
   infof(data, "\t start date: %.*s\n", len, ptr);
-  BIO_reset(mem);
+  rc = BIO_reset(mem);
 
   ASN1_TIME_print(mem, X509_get_notAfter(connssl->server_cert));
   len = BIO_get_mem_data(mem, (char **) &ptr);
   infof(data, "\t expire date: %.*s\n", len, ptr);
-  BIO_reset(mem);
+  rc = BIO_reset(mem);
 
   BIO_free(mem);
 
