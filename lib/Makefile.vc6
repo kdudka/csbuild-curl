@@ -620,6 +620,7 @@ X_OBJS= \
 	$(DIROBJ)\speedcheck.obj \
 	$(DIROBJ)\splay.obj \
 	$(DIROBJ)\ssh.obj \
+	$(DIROBJ)\vauth.obj \
 	$(DIROBJ)\vtls.obj \
 	$(DIROBJ)\openssl.obj \
 	$(DIROBJ)\strdup.obj \
@@ -658,6 +659,9 @@ $(DIROBJ):
 .SUFFIXES: .c .obj .res
 
 {.\}.c{$(DIROBJ)\}.obj:
+	$(CC) $(CFLAGS) /Fo"$@"  $<
+
+{.\vauth\}.c{$(DIROBJ)\}.obj:
 	$(CC) $(CFLAGS) /Fo"$@"  $<
 
 {.\vtls\}.c{$(DIROBJ)\}.obj:
