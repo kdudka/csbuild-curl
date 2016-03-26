@@ -22,7 +22,8 @@
 
 LIB_VAUTH_CFILES = vauth/vauth.c vauth/cleartext.c vauth/cram.c         \
   vauth/digest.c vauth/digest_sspi.c vauth/krb5_gssapi.c                \
-  vauth/krb5_sspi.c vauth/ntlm.c vauth/ntlm_sspi.c vauth/oauth2.c
+  vauth/krb5_sspi.c vauth/ntlm.c vauth/ntlm_sspi.c vauth/oauth2.c       \
+  vauth/spnego_gssapi.c vauth/spnego_sspi.c
 
 LIB_VAUTH_HFILES = vauth/vauth.h vauth/digest.h vauth/ntlm.h
 
@@ -49,10 +50,10 @@ LIB_CFILES = file.c timeval.c base64.c hostip.c progress.c formdata.c   \
   curl_sspi.c slist.c nonblock.c curl_memrchr.c imap.c pop3.c smtp.c    \
   pingpong.c rtsp.c curl_threads.c warnless.c hmac.c curl_rtmp.c        \
   openldap.c curl_gethostname.c gopher.c idn_win32.c                    \
-  http_negotiate_sspi.c http_proxy.c non-ascii.c asyn-ares.c            \
-  asyn-thread.c curl_gssapi.c curl_ntlm.c curl_ntlm_wb.c                \
-  curl_ntlm_core.c curl_sasl.c curl_multibyte.c hostcheck.c conncache.c \
-  pipeline.c dotdot.c x509asn1.c http2.c smb.c curl_endian.c curl_des.c
+  http_proxy.c non-ascii.c asyn-ares.c asyn-thread.c curl_gssapi.c      \
+  curl_ntlm.c curl_ntlm_wb.c curl_ntlm_core.c curl_sasl.c               \
+  curl_multibyte.c hostcheck.c conncache.c pipeline.c dotdot.c          \
+  x509asn1.c http2.c smb.c curl_endian.c curl_des.c
 
 LIB_HFILES = arpa_telnet.h netrc.h file.h timeval.h hostip.h progress.h \
   formdata.h cookie.h http.h sendf.h ftp.h url.h dict.h if2ip.h         \
