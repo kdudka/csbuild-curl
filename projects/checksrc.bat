@@ -29,7 +29,7 @@ rem ***************************************************************************
   setlocal
   set CHECK_LIB=TRUE
   set CHECK_SRC=TRUE
-  set CHECK_TESTS=FALSE
+  set CHECK_TESTS=TRUE
 
 :parseArgs
   if "%~1" == "" goto prerequisites
@@ -122,6 +122,12 @@ rem ***************************************************************************
     if exist %SRC_DIR%\tests\unit (
       for /f "delims=" %%i in ('dir "%SRC_DIR%\tests\unit\*.c.*" /b 2^>NUL') do @perl "%SRC_DIR%\lib\checksrc.pl" "-D%SRC_DIR%\tests\unit" "%%i"
       for /f "delims=" %%i in ('dir "%SRC_DIR%\tests\unit\*.h.*" /b 2^>NUL') do @perl "%SRC_DIR%\lib\checksrc.pl" "-D%SRC_DIR%\tests\unit" "%%i"
+    )
+
+    rem Check the tests\server directory
+    if exist %SRC_DIR%\tests\server (
+      for /f "delims=" %%i in ('dir "%SRC_DIR%\tests\server\*.c.*" /b 2^>NUL') do @perl "%SRC_DIR%\lib\checksrc.pl" "-D%SRC_DIR%\tests\server" "%%i"
+      for /f "delims=" %%i in ('dir "%SRC_DIR%\tests\server\*.h.*" /b 2^>NUL') do @perl "%SRC_DIR%\lib\checksrc.pl" "-D%SRC_DIR%\tests\server" "%%i"
     )
   )
 
