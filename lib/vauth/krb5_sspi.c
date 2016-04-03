@@ -85,7 +85,14 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
   unsigned long attrs;
   TimeStamp expiry; /* For Windows 9x compatibility of SSPI calls */
 
-  if(!krb5->credentials) {
+  if(!krb5->spn) {
+    /* Generate our SPN */
+    krb5->spn = Curl_auth_build_spn(service, host);
+    if(!krb5->spn)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  if(!krb5->output_token) {
     /* Query the security package for Kerberos */
     status = s_pSecFn->QuerySecurityPackageInfo((TCHAR *)
                                                 TEXT(SP_NAME_KERBEROS),
@@ -103,12 +110,9 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
     krb5->output_token = malloc(krb5->token_max);
     if(!krb5->output_token)
       return CURLE_OUT_OF_MEMORY;
+  }
 
-    /* Generate our SPN */
-    krb5->spn = Curl_auth_build_spn(service, host);
-    if(!krb5->spn)
-      return CURLE_OUT_OF_MEMORY;
-
+  if(!krb5->credentials) {
     if(userp && *userp) {
       /* Populate our identity structure */
       result = Curl_create_sspi_identity(userp, passwdp, &krb5->identity);
@@ -146,9 +150,10 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
 
     memset(krb5->context, 0, sizeof(CtxtHandle));
   }
-  else {
+
+  if(chlg64 && strlen(chlg64)) {
     /* Decode the base-64 encoded challenge message */
-    if(strlen(chlg64) && *chlg64 != '=') {
+    if(*chlg64 != '=') {
       result = Curl_base64_decode(chlg64, &chlg, &chlglen);
       if(result)
         return result;
