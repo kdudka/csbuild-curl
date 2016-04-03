@@ -113,9 +113,9 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
     free(spn);
   }
 
-  if(krb5->context != GSS_C_NO_CONTEXT) {
+  if(chlg64 && *chlg64) {
     /* Decode the base-64 encoded challenge message */
-    if(strlen(chlg64) && *chlg64 != '=') {
+    if(*chlg64 != '=') {
       result = Curl_base64_decode(chlg64, &chlg, &chlglen);
       if(result)
         return result;
@@ -144,6 +144,7 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
                                            mutual_auth,
                                            NULL);
 
+  /* Free the decoded challenge as it is not required anymore */
   free(input_token.value);
 
   if(GSS_ERROR(major_status)) {
@@ -162,6 +163,11 @@ CURLcode Curl_auth_create_gssapi_user_message(struct SessionHandle *data,
                                 output_token.length, outptr, outlen);
 
     gss_release_buffer(&unused_status, &output_token);
+  }
+  else if(mutual_auth) {
+    *outptr = strdup("");
+    if(!*outptr)
+      result = CURLE_OUT_OF_MEMORY;
   }
 
   return result;
