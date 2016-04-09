@@ -1498,10 +1498,13 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
      */
     data->set.socks5_gssapi_nec = (0 != va_arg(param, long))?TRUE:FALSE;
     break;
+#endif
 
+#if !defined(CURL_DISABLE_CRYPTO_AUTH) || defined(USE_KERBEROS5) || \
+    defined(USE_SPNEGO)
   case CURLOPT_SERVICE_NAME:
     /*
-     * Set negotiate service identity
+     * Set authentication service name for DIGEST-MD5, Kerberos 5 and SPNEGO
      */
     result = setstropt(&data->set.str[STRING_SERVICE_NAME],
                        va_arg(param, char *));
