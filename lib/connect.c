@@ -668,7 +668,7 @@ void Curl_updateconninfo(struct connectdata *conn, curl_socket_t sockfd)
     /* there's no connection! */
     return;
 
-  if(!conn->bits.reuse) {
+  if(!conn->bits.reuse && !conn->bits.tcp_fastopen) {
     int error;
 
     len = sizeof(struct Curl_sockaddr_storage);
@@ -776,7 +776,7 @@ CURLcode Curl_is_connected(struct connectdata *conn,
         trynextip(conn, sockindex, 1);
       }
     }
-    else if(rc == CURL_CSELECT_OUT) {
+    else if(rc == CURL_CSELECT_OUT || conn->bits.tcp_fastopen) {
       if(verifyconnect(conn->tempsock[i], &error)) {
         /* we are connected with TCP, awesome! */
 
@@ -1097,7 +1097,26 @@ static CURLcode singleipconnect(struct connectdata *conn,
 
   /* Connect TCP sockets, bind UDP */
   if(!isconnected && (conn->socktype == SOCK_STREAM)) {
-    rc = connect(sockfd, &addr.sa_addr, addr.addrlen);
+    if(conn->bits.tcp_fastopen) {
+#if defined(CONNECT_DATA_IDEMPOTENT) /* OS X */
+      sa_endpoints_t endpoints;
+      endpoints.sae_srcif = 0;
+      endpoints.sae_srcaddr = NULL;
+      endpoints.sae_srcaddrlen = 0;
+      endpoints.sae_dstaddr = &addr.sa_addr;
+      endpoints.sae_dstaddrlen = addr.addrlen;
+
+      rc = connectx(sockfd, &endpoints, SAE_ASSOCID_ANY,
+                    CONNECT_RESUME_ON_READ_WRITE | CONNECT_DATA_IDEMPOTENT,
+                    NULL, 0, NULL, NULL);
+#elif defined(MSG_FASTOPEN) /* Linux */
+      rc = 0; /* Do nothing */
+#endif
+    }
+    else {
+      rc = connect(sockfd, &addr.sa_addr, addr.addrlen);
+    }
+
     if(-1 == rc)
       error = SOCKERRNO;
   }
