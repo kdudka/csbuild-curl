@@ -755,6 +755,10 @@ waits for a reply from the server.
 authentication, but non-encrypted data transfers for efficiency.  Fails the
 transfer if the server doesn't support SSL/TLS.  (Added in 7.16.0)
 that can still be used but will be removed in a future version.
+.IP "--ftp-ssl"
+(FTP) This deprecated option is now known as \fI--ssl\fP.
+.IP "--ftp-ssl-reqd"
+(FTP) This deprecated option is now known as \fI--ssl-reqd\fP.
 .IP "--form-string <name=string>"
 (HTTP) Similar to \fI--form\fP except that the value string for the named
 parameter is used literally. Leading \&'@' and \&'<' characters, and the
@@ -954,6 +958,8 @@ This option requires a library built with kerberos4 support. This is not
 very common. Use \fI-V, --version\fP to see if your curl supports it.
 
 If this option is used several times, the last one will be used.
+.IP "--krb4 <level>"
+(FTP) This is the former name for \fI--krb\fP. Do not use.
 .IP "-l, --list-only"
 (FTP)
 When listing an FTP directory, this switch forces a name-only view. This is
@@ -1211,6 +1217,10 @@ This option requires a library built with SSL support. Use
 \fI-V, --version\fP to see if your curl supports NTLM.
 
 If this option is used several times, only the first one is used.
+.IP "--ntlm-wb"
+(HTTP) Enables NTLM much in the style \fI--ntlm\fP does, but hand over the
+authentication to the separate binary ntlmauth application that is executed
+when needed.
 .IP "-o, --output <file>"
 Write output to <file> instead of stdout. If you are using {} or [] to fetch
 multiple documents, you can use '#' followed by a number in the <file>
@@ -1454,7 +1464,7 @@ If this option is used several times, the last one will be used.
 private key file, so passing this option is generally not required. Note that
 this public key extraction requires libcurl to be linked against a copy of
 libssh2 1.2.8 or higher that is itself linked against OpenSSL.)
-.IP "-q"
+.IP "-q, --disable"
 If used as the first parameter on the command line, the \fIcurlrc\fP config
 file will not be read and used. See the \fI-K, --config\fP for details on the
 default config file search path.
@@ -1634,8 +1644,7 @@ option name can still be used but will be removed in a future version.
 (FTP, POP3, IMAP, SMTP) Require SSL/TLS for the connection.  Terminates the
 connection if the server doesn't support SSL/TLS. (Added in 7.20.0)
 
-This option was formerly known as \fI--ftp-ssl-reqd\fP (added in 7.15.5). That
-option name can still be used but will be removed in a future version.
+This option was formerly known as \fI--ftp-ssl-reqd\fP.
 .IP "--ssl-allow-beast"
 (SSL) This option tells curl to not work around a security flaw in the SSL3
 and TLS1.0 protocols known as BEAST.  If this option isn't used, the SSL layer
