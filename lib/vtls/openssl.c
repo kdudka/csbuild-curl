@@ -2385,10 +2385,12 @@ static CURLcode get_cert_chain(struct connectdata *conn,
         X509_get0_signature(&psig, &palg, x);
         X509_signature_print(mem, palg, a);
         ASN1_STRING_free(a);
-      }
-      i2a_ASN1_OBJECT(mem, palg->algorithm);
-      push_certinfo("Public Key Algorithm", i);
 
+        if(palg) {
+          i2a_ASN1_OBJECT(mem, palg->algorithm);
+          push_certinfo("Public Key Algorithm", i);
+        }
+      }
       X509V3_ext(data, i, X509_get0_extensions(x));
     }
 #else
@@ -2548,9 +2550,11 @@ static CURLcode get_cert_chain(struct connectdata *conn,
       EVP_PKEY_free(pubkey);
     }
 
-    for(j = 0; j < psig->length; j++)
-      BIO_printf(mem, "%02x:", psig->data[j]);
-    push_certinfo("Signature", i);
+    if(psig) {
+      for(j = 0; j < psig->length; j++)
+        BIO_printf(mem, "%02x:", psig->data[j]);
+      push_certinfo("Signature", i);
+    }
 
     PEM_write_bio_X509(mem, x);
     push_certinfo("Cert", i);
