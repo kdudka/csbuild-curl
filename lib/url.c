@@ -405,7 +405,7 @@ CURLcode Curl_close(struct Curl_easy *data)
   if(!data)
     return CURLE_OK;
 
-  Curl_expire(data, 0); /* shut off timers */
+  Curl_expire_clear(data); /* shut off timers */
 
   m = data->multi;
 
@@ -602,6 +602,7 @@ CURLcode Curl_init_userdefined(struct UserDefined *set)
   set->tcp_keepintvl = 60;
   set->tcp_keepidle = 60;
   set->tcp_fastopen = FALSE;
+  set->tcp_nodelay = TRUE;
 
   set->ssl_enable_npn = TRUE;
   set->ssl_enable_alpn = TRUE;
@@ -6123,6 +6124,7 @@ static CURLcode create_conn(struct Curl_easy *data,
   data->set.ssl.random_file = data->set.str[STRING_SSL_RANDOM_FILE];
   data->set.ssl.egdsocket = data->set.str[STRING_SSL_EGDSOCKET];
   data->set.ssl.cipher_list = data->set.str[STRING_SSL_CIPHER_LIST];
+  data->set.ssl.clientcert = data->set.str[STRING_CERT];
 #ifdef USE_TLS_SRP
   data->set.ssl.username = data->set.str[STRING_TLSAUTH_USERNAME];
   data->set.ssl.password = data->set.str[STRING_TLSAUTH_PASSWORD];

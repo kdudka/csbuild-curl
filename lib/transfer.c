@@ -384,11 +384,15 @@ bool Curl_meets_timecondition(struct Curl_easy *data, time_t timeofdoc)
  * Go ahead and do a read if we have a readable socket or if
  * the stream was rewound (in which case we have data in a
  * buffer)
+ *
+ * return '*comeback' TRUE if we didn't properly drain the socket so this
+ * function should get called again without select() or similar in between!
  */
 static CURLcode readwrite_data(struct Curl_easy *data,
                                struct connectdata *conn,
                                struct SingleRequest *k,
-                               int *didwhat, bool *done)
+                               int *didwhat, bool *done,
+                               bool *comeback)
 {
   CURLcode result = CURLE_OK;
   ssize_t nread; /* number of bytes read */
@@ -398,6 +402,7 @@ static CURLcode readwrite_data(struct Curl_easy *data,
   int maxloops = 100;
 
   *done = FALSE;
+  *comeback = FALSE;
 
   /* This is where we loop until we have read everything there is to
      read or we get a CURLE_AGAIN */
@@ -804,6 +809,12 @@ static CURLcode readwrite_data(struct Curl_easy *data,
 
   } while(data_pending(conn) && maxloops--);
 
+  if(maxloops <= 0) {
+    /* we mark it as read-again-please */
+    conn->cselect_bits = CURL_CSELECT_IN;
+    *comeback = TRUE;
+  }
+
   if(((k->keepon & (KEEP_RECV|KEEP_SEND)) == KEEP_SEND) &&
      conn->bits.close) {
     /* When we've read the entire thing and the close bit is set, the server
@@ -1029,10 +1040,14 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
 /*
  * Curl_readwrite() is the low-level function to be called when data is to
  * be read and written to/from the connection.
+ *
+ * return '*comeback' TRUE if we didn't properly drain the socket so this
+ * function should get called again without select() or similar in between!
  */
 CURLcode Curl_readwrite(struct connectdata *conn,
                         struct Curl_easy *data,
-                        bool *done)
+                        bool *done,
+                        bool *comeback)
 {
   struct SingleRequest *k = &data->req;
   CURLcode result;
@@ -1077,7 +1092,7 @@ CURLcode Curl_readwrite(struct connectdata *conn,
   if((k->keepon & KEEP_RECV) &&
      ((select_res & CURL_CSELECT_IN) || conn->bits.stream_was_rewound)) {
 
-    result = readwrite_data(data, conn, k, &didwhat, done);
+    result = readwrite_data(data, conn, k, &didwhat, done, comeback);
     if(result || *done)
       return result;
   }
@@ -1875,13 +1890,12 @@ CURLcode Curl_retry_request(struct connectdata *conn,
     return CURLE_OK;
 
   if((data->req.bytecount + data->req.headerbytecount == 0) &&
-      conn->bits.reuse &&
-      !data->set.opt_no_body &&
-      (data->set.rtspreq != RTSPREQ_RECEIVE)) {
-    /* We got no data, we attempted to re-use a connection and yet we want a
-       "body". This might happen if the connection was left alive when we were
-       done using it before, but that was closed when we wanted to read from
-       it again. Bad luck. Retry the same request on a fresh connect! */
+     conn->bits.reuse &&
+     (data->set.rtspreq != RTSPREQ_RECEIVE)) {
+    /* We didn't get a single byte when we attempted to re-use a
+       connection. This might happen if the connection was left alive when we
+       were done using it before, but that was closed when we wanted to use it
+       again. Bad luck. Retry the same request on a fresh connect! */
     infof(conn->data, "Connection died, retrying a fresh connect\n");
     *url = strdup(conn->data->change.url);
     if(!*url)
