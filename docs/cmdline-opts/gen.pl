@@ -10,6 +10,7 @@ my %optshort;
 my %optlong;
 my %helplong;
 my %arglong;
+my %redirlong;
 
 # get the long name version, return the man page string
 sub manpageify {
@@ -33,16 +34,58 @@ sub printdesc {
         if($d =~ /^[^ ]/) {
             for my $k (keys %optlong) {
                 my $l = manpageify($k);
-                $d =~ s/--$k(\s)/$l$1/;
+                $d =~ s/--$k([^a-z0-9_-])/$l$1/;
             }
         }
         print $d;
     }
 }
 
+sub seealso {
+    my($standalone, $data)=@_;
+    if($standalone) {
+        return sprintf
+            ".SH \"SEE ALSO\"\n$data\n";
+    }
+    else {
+        return "See also $data. ";
+    }
+}
+
+sub overrides {
+    my ($standalone, $data)=@_;
+    if($standalone) {
+        return ".SH \"OVERRIDES\"\n$data\n";
+    }
+    else {
+        return $data;
+    }
+}
+
+sub protocols {
+    my ($standalone, $data)=@_;
+    if($standalone) {
+        return ".SH \"PROTOCOLS\"\n$data\n";
+    }
+    else {
+        return "($data) ";
+    }
+}
+
+sub added {
+    my ($standalone, $data)=@_;
+    if($standalone) {
+        return ".SH \"ADDED\"\nAdded in curl version $data\n";
+    }
+    else {
+        return "Added in $added. ";
+    }
+}
+
 sub single {
-    my ($f)=@_;
-    open(F, "<$f");
+    my ($f, $standalone)=@_;
+    open(F, "<$f") ||
+        return 1;
     my $short;
     my $long;
     my $tags;
@@ -51,6 +94,7 @@ sub single {
     my $arg;
     my $mutexed;
     my $requires;
+    my $redirect;
     my $seealso;
     my $magic; # cmdline special option
     while(<F>) {
@@ -84,6 +128,9 @@ sub single {
         elsif(/^Requires: (.*)/i) {
             $requires=$1;
         }
+        elsif(/^Redirect: (.*)/i) {
+            $redirect=$1;
+        }
         elsif(/^---/) {
             last;
         }
@@ -108,22 +155,27 @@ sub single {
         $opt .= " $arg";
     }
 
-    print ".IP \"$opt\"\n";
-    my $o;
-    if($protocols) {
-        $o++;
-        print "($protocols) ";
+    if($standalone) {
+        print ".TH curl 1 \"30 Nov 2016\" \"curl 7.52.0\" \"curl manual\"\n";
+        print ".SH OPTION\n";
+        print "curl $opt\n";
     }
-    if(!$arg && !$mutexed && !$magic) {
-        $o++;
-        print "[Boolean] ";
+    else {
+        print ".IP \"$opt\"\n";
     }
-    if($magic) {
-        $o++;
-        print "[cmdline control] ";
+    if($redirect) {
+        my $l = manpageify($redirect);
+        print "Use $l instead!\n";
+    }
+    else {
+        if($protocols) {
+            print protocols($standalone, $protocols);
+        }
     }
 
-    print "\n" if($o);
+    if($standalone) {
+        print ".SH DESCRIPTION\n";
+    }
 
     printdesc(@desc);
     undef @desc;
@@ -136,7 +188,7 @@ sub single {
             my $l = manpageify($k);
             $mstr .= sprintf "%s$l", $mstr?" and ":"";
         }
-        push @foot, "See also $mstr. ";
+        push @foot, seealso($standalone, $mstr);
     }
     if($requires) {
         my $l = manpageify($long);
@@ -150,16 +202,17 @@ sub single {
             my $l = manpageify($k);
             $mstr .= sprintf "%s$l", $mstr?" and ":"";
         }
-        push @foot, "This option overrides $mstr. ";
+        push @foot, overrides($standalone, "This option overrides $mstr. ");
     }
     if($added) {
-        push @foot, "Added in $added. ";
+        push @foot, added($standalone, $added);
     }
     if($foot[0]) {
         print "\n";
         print @foot;
         print "\n";
     }
+    return 0;
 }
 
 sub getshortlong {
@@ -204,7 +257,8 @@ sub indexoptions {
 }
 
 sub header {
-    open(F, "<page-header");
+    my ($f)=@_;
+    open(F, "<$f");
     my @d;
     while(<F>) {
         push @d, $_;
@@ -231,17 +285,29 @@ sub listhelp {
             $opt .= " $arg";
         }
 
-        printf " %-19s %s\n", $opt, $helplong{$f};
+        my $line = sprintf " %-19s %s\n", $opt, $helplong{$f};
+
+        if(length($line) > 79) {
+            print STDERR "WARN: the --$long line is too long\n";
+        }
+        print $line;
     }
 }
 
 sub mainpage {
     # show the page header
-    header();
+    header("page-header");
 
     # output docs for all options
     foreach my $f (sort @s) {
-        single($f);
+        single($f, 0);
+    }
+}
+
+sub showonly {
+    my ($f) = @_;
+    if(single($f, 1)) {
+        print STDERR "$f: failed\n";
     }
 }
 
@@ -257,9 +323,13 @@ sub getargs {
             listhelp();
             return;
         }
+        elsif($f eq "single") {
+            showonly(shift @ARGV);
+            return;
+        }
     } while($f);
 
-    print "Usage: gen.pl <mainpage/listhelp>\n";
+    print "Usage: gen.pl <mainpage/listhelp/single FILE>\n";
 }
 
 #------------------------------------------------------------------------
