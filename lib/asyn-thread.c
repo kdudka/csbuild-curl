@@ -155,8 +155,8 @@ struct thread_sync_data {
   curl_mutex_t * mtx;
   int done;
 
-  char * hostname;        /* hostname to resolve, Curl_async.hostname
-                             duplicate */
+  char *hostname;        /* hostname to resolve, Curl_async.hostname
+                            duplicate */
   int port;
   int sock_error;
   Curl_addrinfo *res;
@@ -200,7 +200,7 @@ void destroy_thread_sync_data(struct thread_sync_data * tsd)
 /* Initialize resolver thread synchronization data */
 static
 int init_thread_sync_data(struct thread_data * td,
-                           const char * hostname,
+                           const char *hostname,
                            int port,
                            const struct addrinfo *hints)
 {
@@ -382,7 +382,7 @@ static bool init_resolve_thread (struct connectdata *conn,
   struct thread_data *td = calloc(1, sizeof(struct thread_data));
   int err = RESOLVER_ENOMEM;
 
-  conn->async.os_specific = (void*) td;
+  conn->async.os_specific = (void *)td;
   if(!td)
     goto err_exit;
 
