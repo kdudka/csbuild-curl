@@ -79,7 +79,7 @@ sub added {
         return ".SH \"ADDED\"\nAdded in curl version $data\n";
     }
     else {
-        return "Added in $added. ";
+        return "Added in $data. ";
     }
 }
 
@@ -95,7 +95,6 @@ sub single {
     my $arg;
     my $mutexed;
     my $requires;
-    my $redirect;
     my $seealso;
     my $magic; # cmdline special option
     while(<F>) {
@@ -128,9 +127,6 @@ sub single {
         }
         elsif(/^Requires: *(.*)/i) {
             $requires=$1;
-        }
-        elsif(/^Redirect: *(.*)/i) {
-            $redirect=$1;
         }
         elsif(/^Help: *(.*)/i) {
             ;
@@ -174,14 +170,8 @@ sub single {
     else {
         print ".IP \"$opt\"\n";
     }
-    if($redirect) {
-        my $l = manpageify($redirect);
-        print "Use $l instead!\n";
-    }
-    else {
-        if($protocols) {
-            print protocols($standalone, $protocols);
-        }
+    if($protocols) {
+        print protocols($standalone, $protocols);
     }
 
     if($standalone) {
@@ -318,6 +308,8 @@ sub mainpage {
     foreach my $f (sort @s) {
         single($f, 0);
     }
+
+    header("page-footer");
 }
 
 sub showonly {
