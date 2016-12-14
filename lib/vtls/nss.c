@@ -254,7 +254,8 @@ static SECStatus set_ciphers(struct Curl_easy *data, PRFileDesc * model,
     while((*cipher) && (ISSPACE(*cipher)))
       ++cipher;
 
-    if((cipher_list = strchr(cipher, ','))) {
+    cipher_list = strchr(cipher, ',');
+    if(cipher_list) {
       *cipher_list++ = '\0';
     }
 
@@ -1515,7 +1516,7 @@ static CURLcode nss_init_sslver(SSLVersionRange *sslver,
                                 struct Curl_easy *data,
                                 struct connectdata *conn)
 {
-  switch (SSL_CONN_CONFIG(version)) {
+  switch(SSL_CONN_CONFIG(version)) {
   case CURL_SSLVERSION_DEFAULT:
     /* map CURL_SSLVERSION_DEFAULT to NSS default */
     if(SSL_VersionRangeGetDefault(ssl_variant_stream, sslver) != SECSuccess)

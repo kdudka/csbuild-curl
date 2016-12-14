@@ -757,7 +757,11 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       case '@': /* the URL! */
       {
         struct getout *url;
-        if(config->url_get || ((config->url_get = config->url_list) != NULL)) {
+
+        if(!config->url_get)
+          config->url_get = config->url_list;
+
+        if(config->url_get) {
           /* there's a node here, if it already is filled-in continue to find
              an "empty" node */
           while(config->url_get && (config->url_get->flags & GETOUT_URL))
@@ -1628,7 +1632,7 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       break;
     case 'L':
       config->followlocation = toggle; /* Follow Location: HTTP headers */
-      switch (subletter) {
+      switch(subletter) {
       case 't':
         /* Continue to send authentication (user+password) when following
          * locations, even when hostname changed */
@@ -1687,7 +1691,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       /* output file */
     {
       struct getout *url;
-      if(config->url_out || ((config->url_out = config->url_list) != NULL)) {
+      if(!config->url_out)
+        config->url_out = config->url_list;
+      if(config->url_out) {
         /* there's a node here, if it already is filled-in continue to find
            an "empty" node */
         while(config->url_out && (config->url_out->flags & GETOUT_OUTFILE))
@@ -1824,7 +1830,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       /* we are uploading */
     {
       struct getout *url;
-      if(config->url_out || ((config->url_out = config->url_list) != NULL)) {
+      if(!config->url_out)
+        config->url_out = config->url_list;
+      if(config->url_out) {
         /* there's a node here, if it already is filled-in continue to find
            an "empty" node */
         while(config->url_out && (config->url_out->flags & GETOUT_UPLOAD))

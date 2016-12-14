@@ -905,11 +905,11 @@ static void ossl_close(struct ssl_connect_data *connssl)
     (void)SSL_shutdown(connssl->handle);
     SSL_set_connect_state(connssl->handle);
 
-    SSL_free (connssl->handle);
+    SSL_free(connssl->handle);
     connssl->handle = NULL;
   }
   if(connssl->ctx) {
-    SSL_CTX_free (connssl->ctx);
+    SSL_CTX_free(connssl->ctx);
     connssl->ctx = NULL;
   }
 }
@@ -1018,7 +1018,7 @@ int Curl_ossl_shutdown(struct connectdata *conn, int sockindex)
 #endif
     }
 
-    SSL_free (connssl->handle);
+    SSL_free(connssl->handle);
     connssl->handle = NULL;
   }
   return retval;
@@ -1416,7 +1416,7 @@ static const char *ssl_msg_type(int ssl_ver, int msg)
 {
 #ifdef SSL2_VERSION_MAJOR
   if(ssl_ver == SSL2_VERSION_MAJOR) {
-    switch (msg) {
+    switch(msg) {
       case SSL2_MT_ERROR:
         return "Error";
       case SSL2_MT_CLIENT_HELLO:
@@ -1440,7 +1440,7 @@ static const char *ssl_msg_type(int ssl_ver, int msg)
   else
 #endif
   if(ssl_ver == SSL3_VERSION_MAJOR) {
-    switch (msg) {
+    switch(msg) {
       case SSL3_MT_HELLO_REQUEST:
         return "Hello request";
       case SSL3_MT_CLIENT_HELLO:
@@ -2174,7 +2174,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
         return CURLE_SSL_CONNECT_ERROR;
       }
       /* Informational message */
-      infof (data, "SSL re-using session ID\n");
+      infof(data, "SSL re-using session ID\n");
     }
     Curl_ssl_sessionid_unlock(conn);
   }
@@ -2336,7 +2336,8 @@ static int asn1_object_dump(ASN1_OBJECT *a, char *buf, size_t len)
 {
   int i, ilen;
 
-  if((ilen = (int)len) < 0)
+  ilen = (int)len;
+  if(ilen < 0)
     return 1; /* buffer too big */
 
   i = i2t_ASN1_OBJECT(buf, ilen, a);

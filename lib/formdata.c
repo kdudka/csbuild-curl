@@ -316,7 +316,7 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
         break;
     }
 
-    switch (option) {
+    switch(option) {
     case CURLFORM_ARRAY:
       if(array_state)
         /* we don't support an array from within an array */
@@ -949,8 +949,8 @@ void Curl_formclean(struct FormData **form_ptr)
     if(form->type <= FORM_CONTENT)
       free(form->line); /* free the line */
     free(form);       /* free the struct */
-
-  } while((form = next) != NULL); /* continue */
+    form = next;
+  } while(form); /* continue */
 
   *form_ptr = NULL;
 }
@@ -1031,8 +1031,8 @@ void curl_formfree(struct curl_httppost *form)
     free(form->contenttype); /* free the content type */
     free(form->showfilename); /* free the faked file name */
     free(form);       /* free the struct */
-
-  } while((form = next) != NULL); /* continue */
+    form = next;
+  } while(form); /* continue */
 }
 
 #ifndef HAVE_BASENAME
@@ -1374,8 +1374,8 @@ CURLcode Curl_getformdata(struct Curl_easy *data,
       if(result)
         break;
     }
-
-  } while((post = post->next) != NULL); /* for each field */
+    post = post->next;
+  } while(post); /* for each field */
 
   /* end-boundary for everything */
   if(!result)
@@ -1434,7 +1434,7 @@ static FILE * vmsfopenread(const char *file, const char *mode)
 
   result = stat(file, &statbuf);
 
-  switch (statbuf.st_fab_rfm) {
+  switch(statbuf.st_fab_rfm) {
   case FAB$C_VAR:
   case FAB$C_VFC:
   case FAB$C_STMCR:

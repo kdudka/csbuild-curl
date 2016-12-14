@@ -455,7 +455,7 @@ static CURLcode ReceivedServerConnect(struct connectdata *conn, bool *received)
   result = Curl_socket_check(ctrl_sock, data_sock, CURL_SOCKET_BAD, 0);
 
   /* see if the connection request is already here */
-  switch (result) {
+  switch(result) {
   case -1: /* error */
     /* let's die here */
     failf(data, "Error while waiting for server connect");
@@ -741,7 +741,7 @@ CURLcode Curl_GetFTPResponse(ssize_t *nreadp, /* return number of bytes read */
        */
     }
     else if(!Curl_ssl_data_pending(conn, FIRSTSOCKET)) {
-      switch (SOCKET_READABLE(sockfd, interval_ms)) {
+      switch(SOCKET_READABLE(sockfd, interval_ms)) {
       case -1: /* select() error, stop reading */
         failf(data, "FTP response aborted due to select/poll error: %d",
               SOCKERRNO);
@@ -1035,7 +1035,8 @@ static CURLcode ftp_state_use_port(struct connectdata *conn,
     if(*string_ftpport == '[') {
       /* [ipv6]:port(-range) */
       ip_start = string_ftpport + 1;
-      if((ip_end = strchr(string_ftpport, ']')) != NULL)
+      ip_end = strchr(string_ftpport, ']');
+      if(ip_end)
         strncpy(addr, ip_start, ip_end - ip_start);
     }
     else
@@ -1043,30 +1044,35 @@ static CURLcode ftp_state_use_port(struct connectdata *conn,
       if(*string_ftpport == ':') {
         /* :port */
         ip_end = string_ftpport;
-    }
-    else if((ip_end = strchr(string_ftpport, ':')) != NULL) {
-        /* either ipv6 or (ipv4|domain|interface):port(-range) */
-#ifdef ENABLE_IPV6
-      if(Curl_inet_pton(AF_INET6, string_ftpport, sa6) == 1) {
-        /* ipv6 */
-        port_min = port_max = 0;
-        strcpy(addr, string_ftpport);
-        ip_end = NULL; /* this got no port ! */
       }
-      else
+      else {
+        ip_end = strchr(string_ftpport, ':');
+        if(ip_end) {
+          /* either ipv6 or (ipv4|domain|interface):port(-range) */
+#ifdef ENABLE_IPV6
+          if(Curl_inet_pton(AF_INET6, string_ftpport, sa6) == 1) {
+            /* ipv6 */
+            port_min = port_max = 0;
+            strcpy(addr, string_ftpport);
+            ip_end = NULL; /* this got no port ! */
+          }
+          else
 #endif
-        /* (ipv4|domain|interface):port(-range) */
-        strncpy(addr, string_ftpport, ip_end - ip_start);
-    }
-    else
-      /* ipv4|interface */
-      strcpy(addr, string_ftpport);
+            /* (ipv4|domain|interface):port(-range) */
+            strncpy(addr, string_ftpport, ip_end - ip_start);
+        }
+        else
+          /* ipv4|interface */
+          strcpy(addr, string_ftpport);
+      }
 
     /* parse the port */
     if(ip_end != NULL) {
-      if((port_start = strchr(ip_end, ':')) != NULL) {
+      port_start = strchr(ip_end, ':');
+      if(port_start) {
         port_min = curlx_ultous(strtoul(port_start+1, NULL, 10));
-        if((port_sep = strchr(port_start, '-')) != NULL) {
+        port_sep = strchr(port_start, '-');
+        if(port_sep) {
           port_max = curlx_ultous(strtoul(port_sep + 1, NULL, 10));
         }
         else
@@ -3873,7 +3879,7 @@ static CURLcode wc_statemach(struct connectdata *conn)
   struct WildcardData * const wildcard = &(conn->data->wildcard);
   CURLcode result = CURLE_OK;
 
-  switch (wildcard->state) {
+  switch(wildcard->state) {
   case CURLWC_INIT:
     result = init_wc_data(conn);
     if(wildcard->state == CURLWC_CLEAN)
@@ -4501,7 +4507,7 @@ static CURLcode ftp_setup_connection(struct connectdata *conn)
     command = Curl_raw_toupper(type[6]);
     conn->bits.type_set = TRUE;
 
-    switch (command) {
+    switch(command) {
     case 'A': /* ASCII mode */
       data->set.prefer_ascii = TRUE;
       break;
