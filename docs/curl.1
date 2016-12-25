@@ -251,12 +251,7 @@ See also \fI--cert-type\fP and \fI--key\fP and \fI--key-type\fP.
 (TLS) Specifies which ciphers to use in the connection. The list of ciphers must
 specify valid ciphers. Read up on SSL cipher list details on this URL:
 
- https://www.openssl.org/docs/apps/ciphers.html
-
-NSS ciphers are done differently than OpenSSL and GnuTLS. The full list of NSS
-ciphers is in the NSSCipherSuite entry at this URL:
-
- https://git.fedorahosted.org/cgit/mod_nss.git/plain/docs/mod_nss.html#Directives
+ https://curl.haxx.se/docs/ssl-ciphers.html
 
 If this option is used several times, the last one will be used.
 .IP "--compressed"
@@ -2508,14 +2503,25 @@ Weird server reply. The server sent data curl couldn't parse.
 FTP access denied. The server denied login or denied access to the particular
 resource or directory you wanted to reach. Most often you tried to change to a
 directory that doesn't exist on the server.
+.IP 10
+FTP accept failed. While waiting for the server to connect back when an active
+FTP session is used, an error code was sent over the control connection or
+similar.
 .IP 11
 FTP weird PASS reply. Curl couldn't parse the reply sent to the PASS request.
+.IP 12
+During an active FTP session while waiting for the server to connect back to
+curl, the timeout expired.
 .IP 13
 FTP weird PASV reply, Curl couldn't parse the reply sent to the PASV request.
 .IP 14
 FTP weird 227 format. Curl couldn't parse the 227-line the server sent.
 .IP 15
 FTP can't get host. Couldn't resolve the host IP we got in the 227-line.
+.IP 16
+HTTP/2 error. A problem was detected in the HTTP2 framing layer. This is
+somewhat generic and can be one out of several problems, see the error message
+for details.
 .IP 17
 FTP couldn't set binary. Couldn't change transfer method to binary.
 .IP 18
