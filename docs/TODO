@@ -66,8 +66,10 @@
  5.6 Refuse "downgrade" redirects
  5.7 Brotli compression
  5.8 QUIC
- 5.9 Add easy argument to formpost functions
+ 5.9 Improve formpost API
  5.10 Leave secure cookies alone
+ 5.11 Chunked transfer multipart formpost
+
 
  6. TELNET
  6.1 ditch stdin
@@ -148,8 +150,8 @@
  18.12 keep running, read instructions from pipe/socket
  18.13 support metalink in http headers
  18.14 --fail without --location should treat 3xx as a failure
- 18.15 Introduce --fail-fast to exit on first transfer fail
- 18.16 --retry should resume
+ 18.15 --retry should resume
+ 18.16 send only part of --data
 
  19. Build
  19.1 roffit
@@ -553,12 +555,12 @@ This is not detailed in any FTP specification.
  implemented. This, to allow other projects to benefit from the work and to
  thus broaden the interest and chance of others to participate.
 
-5.9 Add easy argument to formpost functions
+5.9 Improve formpost API
 
- Make sure there's an easy handle passed in to `curl_formadd()`,
- `curl_formget()` and `curl_formfree()` by adding replacement functions and
- deprecating the old ones. Allows better error messages and is generally good
- API hygiene.
+ Revamp the formpost API and making something that is easier to use and
+ understand:
+
+ https://github.com/curl/curl/wiki/formpost-API-redesigned
 
 5.10 Leave secure cookies alone
 
@@ -566,6 +568,15 @@ This is not detailed in any FTP specification.
  cookies with the 'secure' property:
 
  https://tools.ietf.org/html/draft-ietf-httpbis-cookie-alone-01
+
+5.11 Chunked transfer multipart formpost
+
+ For a case where the file is being made during the upload is progressing
+ (like passed on stdin to the curl tool), we cannot know the size before-hand
+ and we rather not read the entire thing into memory before it can start the
+ upload.
+
+ https://github.com/curl/curl/issues/1139
 
 
 6. TELNET
@@ -1001,15 +1012,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  way to implement this is probably to add that new logic in the command line
  tool only and not in the underlying CURLOPT_FAILONERROR logic.
 
-18.15 Introduce --fail-fast to exit on first transfer fail
-
- curl will transfer all URLs given on the command line one by one but only
- returns the error code for the last transfer. Transfer failures on the first
- ones will not be returned as error code etc to the shell. A --fail-fast
- option would make curl exit and return an error for the first transfer that
- fails.
-
-18.16 --retry should resume
+18.15 --retry should resume
 
  When --retry is used and curl actually retries transfer, it should use the
  already transfered data and do a resumed transfer for the rest (when
@@ -1018,6 +1021,14 @@ that doesn't exist on the server, just like --ftp-create-dirs.
 
  See https://github.com/curl/curl/issues/1084
 
+18.16 send only part of --data
+
+ When the user only wants to send a small piece of the data provided with
+ --data or --data-binary, like when that data is a huge file, consider a way
+ to specify that curl should only send a piece of that. One suggested syntax
+ would be: "--data-binary @largefile.zip!1073741823-2147483647".
+
+ See https://github.com/curl/curl/issues/1200
 
 19. Build
 
