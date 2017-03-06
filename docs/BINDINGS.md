@@ -53,7 +53,7 @@ Go: [go-curl](https://github.com/andelf/go-curl) by ShuYu Wang
 
 [Lisp](https://common-lisp.net/project/cl-curl/) Written by Liam Healy
 
-Lua: [luacurl](http://luacurl.luaforge.net/) by Alexander Marinov, [Lua-cURL](http://luaforge.net/projects/lua-curl/) by Jürgen Hötzel
+Lua: [luacurl](http://luacurl.luaforge.net/) by Alexander Marinov, [Lua-cURL](https://github.com/Lua-cURL) by Jürgen Hötzel
 
 [Mono](https://forge.novell.com/modules/xfmod/project/?libcurl-mono) Written by Jeffrey Phillips
 
@@ -88,6 +88,8 @@ Ruby: [curb](http://curb.rubyforge.org/) written by Ross Bamford, [ruby-curl-mul
 [Rust](https://github.com/carllerche/curl-rust) curl-rust - by Carl Lerche
 
 [Scheme](https://www.metapaper.net/lisovsky/web/curl/) Bigloo binding by Kirill Lisovsky
+
+[Scilab](https://help.scilab.org/docs/current/fr_FR/getURL.html) binding by Sylvestre Ledru
 
 [S-Lang](http://www.jedsoft.org/slang/modules/curl.html) by John E Davis
 
