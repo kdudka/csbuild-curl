@@ -211,6 +211,7 @@ int Curl_gtls_cleanup(void)
   return 1;
 }
 
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
 static void showtime(struct Curl_easy *data,
                      const char *text,
                      time_t stamp)
@@ -234,6 +235,7 @@ static void showtime(struct Curl_easy *data,
            tm->tm_sec);
   infof(data, "%s\n", data->state.buffer);
 }
+#endif
 
 static gnutls_datum_t load_file(const char *file)
 {
@@ -278,7 +280,7 @@ static CURLcode handshake(struct connectdata *conn,
   struct ssl_connect_data *connssl = &conn->ssl[sockindex];
   gnutls_session_t session = conn->ssl[sockindex].session;
   curl_socket_t sockfd = conn->sock[sockindex];
-  long timeout_ms;
+  time_t timeout_ms;
   int rc;
   int what;
 
@@ -314,7 +316,7 @@ static CURLcode handshake(struct connectdata *conn,
           return CURLE_OK;
         else if(timeout_ms) {
           /* timeout */
-          failf(data, "SSL connection timeout at %ld", timeout_ms);
+          failf(data, "SSL connection timeout at %ld", (long)timeout_ms);
           return CURLE_OPERATION_TIMEDOUT;
         }
       }
@@ -873,7 +875,7 @@ gtls_connect_step1(struct connectdata *conn,
 
   /* This might be a reconnect, so we check for a session ID in the cache
      to speed up things */
-  if(data->set.general_ssl.sessionid) {
+  if(SSL_SET_OPTION(primary.sessionid)) {
     void *ssl_sessionid;
     size_t ssl_idsize;
 
@@ -962,8 +964,6 @@ gtls_connect_step3(struct connectdata *conn,
   gnutls_datum_t issuerp;
   char certbuf[256] = ""; /* big enough? */
   size_t size;
-  unsigned int algo;
-  unsigned int bits;
   time_t certclock;
   const char *ptr;
   struct Curl_easy *data = conn->data;
@@ -973,7 +973,11 @@ gtls_connect_step3(struct connectdata *conn,
   gnutls_datum_t proto;
 #endif
   CURLcode result = CURLE_OK;
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  unsigned int algo;
+  unsigned int bits;
   gnutls_protocol_t version = gnutls_protocol_get_version(session);
+#endif
   const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
     conn->host.name;
 
@@ -1342,6 +1346,7 @@ gtls_connect_step3(struct connectdata *conn,
 
   */
 
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
   /* public key algorithm's parameters */
   algo = gnutls_x509_crt_get_pk_algorithm(x509_cert, &bits);
   infof(data, "\t certificate public key: %s\n",
@@ -1366,12 +1371,13 @@ gtls_connect_step3(struct connectdata *conn,
   gnutls_x509_crt_get_issuer_dn(x509_cert, certbuf, &size);
   infof(data, "\t issuer: %s\n", certbuf);
 
-  gnutls_x509_crt_deinit(x509_cert);
-
   /* compression algorithm (if any) */
   ptr = gnutls_compression_get_name(gnutls_compression_get(session));
   /* the *_get_name() says "NULL" if GNUTLS_COMP_NULL is returned */
   infof(data, "\t compression: %s\n", ptr);
+#endif
+
+  gnutls_x509_crt_deinit(x509_cert);
 
 #ifdef HAS_ALPN
   if(conn->bits.tls_enable_alpn) {
@@ -1402,7 +1408,7 @@ gtls_connect_step3(struct connectdata *conn,
   conn->recv[sockindex] = gtls_recv;
   conn->send[sockindex] = gtls_send;
 
-  if(data->set.general_ssl.sessionid) {
+  if(SSL_SET_OPTION(primary.sessionid)) {
     /* we always unconditionally get the session id here, as even if we
        already got it from the cache and asked to use it in the connection, it
        might've been rejected and then a new one is in use now and we need to

@@ -316,7 +316,7 @@ struct ssl_connect_data {
   PRFileDesc *handle;
   char *client_nickname;
   struct Curl_easy *data;
-  struct curl_llist *obj_list;
+  struct curl_llist obj_list;
   PK11GenericObject *obj_clicert;
 #elif defined(USE_GSKIT)
   gsk_handle handle;
@@ -333,6 +333,11 @@ struct ssl_connect_data {
   size_t encdata_length, decdata_length;
   size_t encdata_offset, decdata_offset;
   unsigned char *encdata_buffer, *decdata_buffer;
+  /* encdata_is_incomplete: if encdata contains only a partial record that
+     can't be decrypted without another Curl_read_plain (that is, status is
+     SEC_E_INCOMPLETE_MESSAGE) then set this true. after Curl_read_plain writes
+     more bytes into encdata then set this back to false. */
+  bool encdata_is_incomplete;
   unsigned long req_flags, ret_flags;
   CURLcode recv_unrecoverable_err; /* schannel_recv had an unrecoverable err */
   bool recv_sspi_close_notify; /* true if connection closed by close_notify */
@@ -360,6 +365,7 @@ struct ssl_primary_config {
   char *random_file;     /* path to file containing "random" data */
   char *egdsocket;       /* path to file containing the EGD daemon socket */
   char *cipher_list;     /* list of ciphers to use */
+  bool sessionid;        /* cache session IDs or not */
 };
 
 struct ssl_config_data {
@@ -389,7 +395,6 @@ struct ssl_config_data {
 };
 
 struct ssl_general_config {
-  bool sessionid; /* cache session IDs or not */
   size_t max_ssl_sessions; /* SSL session id cache size */
 };
 
@@ -716,7 +721,6 @@ struct SingleRequest {
   long bodywrites;
 
   char *buf;
-  char *uploadbuf;
   curl_socket_t maxfd;
 
   int keepon;
@@ -898,6 +902,8 @@ struct connectdata {
      connection is used! */
   struct Curl_easy *data;
 
+  struct curl_llist_element bundle_node; /* conncache */
+
   /* chunk is for HTTP chunked encoding, but is in the general connectdata
      struct only because we can do just about any protocol through a HTTP proxy
      and a HTTP proxy may in fact respond using chunked encoding */
@@ -1058,10 +1064,10 @@ struct connectdata {
                               handle */
   bool writechannel_inuse; /* whether the write channel is in use by an easy
                               handle */
-  struct curl_llist *send_pipe; /* List of handles waiting to
-                                   send on this pipeline */
-  struct curl_llist *recv_pipe; /* List of handles waiting to read
-                                   their responses on this pipeline */
+  struct curl_llist send_pipe; /* List of handles waiting to send on this
+                                  pipeline */
+  struct curl_llist recv_pipe; /* List of handles waiting to read their
+                                  responses on this pipeline */
   char *master_buffer; /* The master buffer allocated on-demand;
                           used for pipelining. */
   size_t read_pos; /* Current read position in the master buffer */
@@ -1294,6 +1300,19 @@ struct Curl_http2_dep {
   struct Curl_easy *data;
 };
 
+/*
+ * This struct is for holding data that was attemped to get sent to the user's
+ * callback but is held due to pausing. One instance per type (BOTH, HEADER,
+ * BODY).
+ */
+struct tempbuf {
+  char *buf;  /* allocated buffer to keep data in when a write callback
+                 returns to make the connection paused */
+  size_t len; /* size of the 'tempwrite' allocated buffer */
+  int type;   /* type of the 'tempwrite' buffer as a bitmask that is used with
+                 Curl_client_write() */
+};
+
 struct UrlState {
 
   /* Points to the connection cache */
@@ -1314,7 +1333,7 @@ struct UrlState {
 
   char *buffer; /* download buffer */
   char uploadbuffer[BUFSIZE+1]; /* upload buffer */
-  curl_off_t current_speed;  /* the ProgressShow() funcion sets this,
+  curl_off_t current_speed;  /* the ProgressShow() function sets this,
                                 bytes / second */
   bool this_is_a_follow; /* this is a followed Location: request */
 
@@ -1327,11 +1346,8 @@ struct UrlState {
   int first_remote_port; /* remote port of the first (not followed) request */
   struct curl_ssl_session *session; /* array of 'max_ssl_sessions' size */
   long sessionage;                  /* number of the most recent session */
-  char *tempwrite;      /* allocated buffer to keep data in when a write
-                           callback returns to make the connection paused */
-  size_t tempwritesize; /* size of the 'tempwrite' allocated buffer */
-  int tempwritetype;    /* type of the 'tempwrite' buffer as a bitmask that is
-                           used with Curl_client_write() */
+  unsigned int tempcount; /* number of entries in use in tempwrite, 0 - 3 */
+  struct tempbuf tempwrite[3]; /* BOTH, HEADER, BODY */
   char *scratch; /* huge buffer[BUFSIZE*2] when doing upload CRLF replacing */
   bool errorbuf; /* Set to TRUE if the error buffer is already filled in.
                     This must be set to FALSE every time _easy_perform() is
@@ -1364,7 +1380,7 @@ struct UrlState {
 #endif /* USE_OPENSSL */
   struct timeval expiretime; /* set this with Curl_expire() only */
   struct Curl_tree timenode; /* for the splay stuff */
-  struct curl_llist *timeoutlist; /* list of pending timeouts */
+  struct curl_llist timeoutlist; /* list of pending timeouts */
 
   /* a place to store the most recently set FTP entrypath */
   char *most_recent_ftp_entrypath;
@@ -1794,6 +1810,8 @@ struct Curl_easy {
   struct Curl_easy *prev;
 
   struct connectdata *easy_conn;     /* the "unit's" connection */
+  struct curl_llist_element connect_queue;
+  struct curl_llist_element pipeline_queue;
 
   CURLMstate mstate;  /* the handle's state */
   CURLcode result;   /* previous result */

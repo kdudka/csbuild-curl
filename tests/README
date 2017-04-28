@@ -44,6 +44,7 @@ The curl Test Suite
   stunnel (for HTTPS and FTPS tests)
   OpenSSH or SunSSH (for SCP, SFTP and SOCKS4/5 tests)
   nghttpx (for HTTP/2 tests)
+  nroff (for --manual tests)
 
  1.2 Port numbers used by test servers
 
@@ -93,10 +94,10 @@ The curl Test Suite
 
  1.4 Run
 
-  'make test'. This builds the test suite support code and invokes the
-  'runtests.pl' perl script to run all the tests. Edit the top variables
-  of that script in case you have some specific needs, or run the script
-  manually (after the support code has been built).
+  './configure && make && make test'. This builds the test suite support code
+  and invokes the 'runtests.pl' perl script to run all the tests. Edit the top
+  variables of that script in case you have some specific needs, or run the
+  script manually (after the support code has been built).
 
   The script breaks on the first test that doesn't do OK. Use -a to prevent
   the script from aborting on the first error. Run the script with -v for more
