@@ -405,8 +405,7 @@ static CURLcode readwrite_data(struct Curl_easy *data,
   /* This is where we loop until we have read everything there is to
      read or we get a CURLE_AGAIN */
   do {
-    size_t buffersize = data->set.buffer_size?
-      data->set.buffer_size : BUFSIZE;
+    size_t buffersize = data->set.buffer_size;
     size_t bytestoread = buffersize;
 
     if(
@@ -681,8 +680,6 @@ static CURLcode readwrite_data(struct Curl_easy *data,
         excess = (size_t)(k->bytecount + nread - k->maxdownload);
         if(excess > 0 && !k->ignorebody) {
           if(Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1)) {
-            /* The 'excess' amount below can't be more than BUFSIZE which
-               always will fit in a size_t */
             infof(data,
                   "Rewinding stream by : %zu"
                   " bytes on url %s (size = %" CURL_FORMAT_CURL_OFF_T
@@ -905,7 +902,7 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
             sending_http_headers = FALSE;
         }
 
-        result = Curl_fillreadbuffer(conn, BUFSIZE, &fillcount);
+        result = Curl_fillreadbuffer(conn, UPLOAD_BUFSIZE, &fillcount);
         if(result)
           return result;
 
@@ -937,7 +934,7 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
          (data->set.crlf))) {
         /* Do we need to allocate a scratch buffer? */
         if(!data->state.scratch) {
-          data->state.scratch = malloc(2 * BUFSIZE);
+          data->state.scratch = malloc(2 * data->set.buffer_size);
           if(!data->state.scratch) {
             failf(data, "Failed to alloc scratch buffer!");
 
