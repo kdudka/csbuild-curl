@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2017, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -124,6 +124,12 @@ __extension__ ({                                                              \
     if(_curl_is_slist_info(_curl_info))                                       \
       if(!_curl_is_arr((arg), struct curl_slist *))                           \
         _curl_easy_getinfo_err_curl_slist();                                  \
+    if(_curl_is_tlssessioninfo_info(_curl_info))                              \
+      if(!_curl_is_arr((arg), struct curl_tlssessioninfo *))                  \
+        _curl_easy_getinfo_err_curl_tlssesssioninfo();                        \
+    if(_curl_is_certinfo_info(_curl_info))                                    \
+      if(!_curl_is_arr((arg), struct curl_certinfo *))                        \
+        _curl_easy_getinfo_err_curl_certinfo();                               \
    if(_curl_is_socket_info(_curl_info))                                       \
       if(!_curl_is_arr((arg), curl_socket_t))                                 \
         _curl_easy_getinfo_err_curl_socket();                                 \
@@ -204,6 +210,12 @@ _CURL_WARNING(_curl_easy_getinfo_err_double,
   "curl_easy_getinfo expects a pointer to double for this info")
 _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
   "curl_easy_getinfo expects a pointer to 'struct curl_slist *' for this info")
+_CURL_WARNING(_curl_easy_getinfo_err_curl_tlssesssioninfo,
+              "curl_easy_getinfo expects a pointer to "
+              "'struct curl_tlssessioninfo *' for this info")
+_CURL_WARNING(_curl_easy_getinfo_err_curl_certinfo,
+              "curl_easy_getinfo expects a pointer to "
+              "'struct curl_certinfo *' for this info")
 _CURL_WARNING(_curl_easy_getinfo_err_curl_socket,
   "curl_easy_getinfo expects a pointer to curl_socket_t for this info")
 
@@ -367,8 +379,15 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_socket,
   (CURLINFO_DOUBLE < (info) && (info) < CURLINFO_SLIST)
 
 /* true if info expects a pointer to struct curl_slist * argument */
-#define _curl_is_slist_info(info)                                             \
-  (CURLINFO_SLIST < (info) && (info) < CURLINFO_SOCKET)
+#define _curl_is_slist_info(info)                                       \
+  (((info) == CURLINFO_SSL_ENGINES) || ((info) == CURLINFO_COOKIELIST))
+
+/* true if info expects a pointer to struct curl_tlssessioninfo * argument */
+#define _curl_is_tlssessioninfo_info(info)                              \
+  (((info) == CURLINFO_TLS_SSL_PTR) || ((info) == CURLINFO_TLS_SESSION))
+
+/* true if info expects a pointer to struct curl_certinfo * argument */
+#define _curl_is_certinfo_info(info) ((info) == CURLINFO_CERTINFO)
 
 /* true if info expects a pointer to struct curl_socket_t argument */
 #define _curl_is_socket_info(info)                                            \
