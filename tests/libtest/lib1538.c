@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_ENDIAN_H
-#define HEADER_CURL_ENDIAN_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -21,26 +19,33 @@
  * KIND, either express or implied.
  *
  ***************************************************************************/
+#include "test.h"
 
-/* Converts a 16-bit integer from little endian */
-unsigned short Curl_read16_le(const unsigned char *buf);
+#include "memdebug.h"
 
-/* Converts a 32-bit integer from little endian */
-unsigned int Curl_read32_le(const unsigned char *buf);
+int test(char *URL)
+{
+  int res = 0;
+  CURLcode easyret;
+  CURLMcode multiret;
+  CURLSHcode shareret;
+  (void)URL;
 
-/* Converts a 16-bit integer from big endian */
-unsigned short Curl_read16_be(const unsigned char *buf);
+  curl_easy_strerror(INT_MAX);
+  curl_multi_strerror(INT_MAX);
+  curl_share_strerror(INT_MAX);
+  curl_easy_strerror(-INT_MAX);
+  curl_multi_strerror(-INT_MAX);
+  curl_share_strerror(-INT_MAX);
+  for(easyret=CURLE_OK; easyret <= CURL_LAST; easyret++) {
+    printf("e%d: %s\n", (int)easyret, curl_easy_strerror(easyret));
+  }
+  for(multiret=CURLM_CALL_MULTI_PERFORM; multiret <= CURLM_LAST; multiret++) {
+    printf("m%d: %s\n", (int)multiret, curl_multi_strerror(multiret));
+  }
+  for(shareret=CURLSHE_OK; shareret <= CURLSHE_LAST; shareret++) {
+    printf("s%d: %s\n", (int)shareret, curl_share_strerror(shareret));
+  }
 
-/* Converts a 32-bit integer to little endian */
-void Curl_write32_le(const int value, unsigned char *buffer);
-
-#if (CURL_SIZEOF_CURL_OFF_T > 4)
-/* Converts a 64-bit integer to little endian */
-#if defined(HAVE_LONGLONG)
-void Curl_write64_le(const long long value, unsigned char *buffer);
-#else
-void Curl_write64_le(const __int64 value, unsigned char *buffer);
-#endif
-#endif
-
-#endif /* HEADER_CURL_ENDIAN_H */
+  return (int)res;
+}
