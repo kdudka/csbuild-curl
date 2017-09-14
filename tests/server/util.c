@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2017, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -81,15 +81,15 @@ char *data_to_hex(char *data, size_t len)
   if(len > 255)
     len = 255;
 
-  for(i=0; i < len; i++) {
+  for(i = 0; i < len; i++) {
     if((data[i] >= 0x20) && (data[i] < 0x7f))
       *optr++ = *iptr++;
     else {
       snprintf(optr, 4, "%%%02x", *iptr++);
-      optr+=3;
+      optr += 3;
     }
   }
-  *optr=0; /* in case no sprintf was used */
+  *optr = 0; /* in case no sprintf was used */
 
   return buf;
 }
@@ -100,7 +100,7 @@ void logmsg(const char *msg, ...)
   char buffer[2048 + 1];
   FILE *logfp;
   int error;
-  struct timeval tv;
+  struct curltime tv;
   time_t sec;
   struct tm *now;
   char timebuf[20];
@@ -189,7 +189,7 @@ void win32_cleanup(void)
 #endif  /* USE_WINSOCK */
 
 /* set by the main code to point to where the test dir is */
-const char *path=".";
+const char *path = ".";
 
 char *test2file(long testno)
 {
@@ -213,7 +213,7 @@ int wait_ms(int timeout_ms)
 #ifndef HAVE_POLL_FINE
   struct timeval pending_tv;
 #endif
-  struct timeval initial_tv;
+  struct curltime initial_tv;
   int pending_ms;
   int error;
 #endif
