@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2017, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2018, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -26,6 +26,8 @@
 
 #include "mime.h"
 #include "non-ascii.h"
+#include "urldata.h"
+#include "sendf.h"
 
 #if !defined(CURL_DISABLE_HTTP) || !defined(CURL_DISABLE_SMTP) || \
     !defined(CURL_DISABLE_IMAP)
@@ -275,30 +277,25 @@ static void mimesetstate(mime_state *state, enum mimestate tok, void *ptr)
 
 
 /* Escape header string into allocated memory. */
-static char *escape_string(const char *src, size_t len)
+static char *escape_string(const char *src)
 {
-  size_t bytecount;
+  size_t bytecount = 0;
   size_t i;
   char *dst;
 
-  if(len == CURL_ZERO_TERMINATED)
-    len = strlen(src);
-
-  bytecount = len;
-  for(i = 0; i < len; i++)
-    if(src[i] == '"' || src[i] == '\\' || !src[i])
+  for(i = 0; src[i]; i++)
+    if(src[i] == '"' || src[i] == '\\')
       bytecount++;
 
+  bytecount += i;
   dst = malloc(bytecount + 1);
   if(!dst)
     return NULL;
 
-  for(i = 0; len; len--) {
-    char c = *src++;
-
-    if(c == '"' || c == '\\' || !c)
+  for(i = 0; *src; src++) {
+    if(*src == '"' || *src == '\\')
       dst[i++] = '\\';
-    dst[i++] = c? c: '0';
+    dst[i++] = *src;
   }
 
   dst[i] = '\0';
@@ -409,7 +406,7 @@ static size_t encoder_base64_read(char *buffer, size_t size, bool ateof,
 
   while(st->bufbeg < st->bufend) {
     /* Line full ? */
-    if(st->pos >= MAX_ENCODED_LINE_LENGTH - 4) {
+    if(st->pos > MAX_ENCODED_LINE_LENGTH - 4) {
       /* Yes, we need 2 characters for CRLF. */
       if(size < 2)
         break;
@@ -424,7 +421,7 @@ static size_t encoder_base64_read(char *buffer, size_t size, bool ateof,
     if(size < 4 || st->bufend - st->bufbeg < 3)
       break;
 
-    /* Encode three bytes a four characters. */
+    /* Encode three bytes as four characters. */
     i = st->buf[st->bufbeg++] & 0xFF;
     i = (i << 8) | (st->buf[st->bufbeg++] & 0xFF);
     i = (i << 8) | (st->buf[st->bufbeg++] & 0xFF);
@@ -623,14 +620,13 @@ static size_t mime_mem_read(char *buffer, size_t size, size_t nitems,
 {
   curl_mimepart *part = (curl_mimepart *) instream;
   size_t sz = (size_t) part->datasize - part->state.offset;
-
   (void) size;   /* Always 1.*/
 
   if(sz > nitems)
     sz = nitems;
 
   if(sz)
-    memcpy(buffer, (char *) part->data, sz);
+    memcpy(buffer, (char *) &part->data[part->state.offset], sz);
 
   part->state.offset += sz;
   return sz;
@@ -722,8 +718,6 @@ static size_t readback_bytes(mime_state *state,
                              const char *trail)
 {
   size_t sz;
-
-  sz = numbytes - state->offset;
 
   if(numbytes > state->offset) {
     sz = numbytes - state->offset;
@@ -969,11 +963,14 @@ static size_t mime_subparts_read(char *buffer, size_t size, size_t nitems,
           convbuf = buffer;
         }
 #endif
-        mimesetstate(&mime->state,
-                     part? MIMESTATE_CONTENT: MIMESTATE_END, part);
+        mimesetstate(&mime->state, MIMESTATE_CONTENT, part);
       }
       break;
     case MIMESTATE_CONTENT:
+      if(!part) {
+        mimesetstate(&mime->state, MIMESTATE_END, NULL);
+        break;
+      }
       sz = readback_part(part, buffer, nitems);
       switch(sz) {
       case CURL_READFUNC_ABORT:
@@ -1071,13 +1068,6 @@ static int mime_subparts_seek(void *instream, curl_off_t offset, int whence)
   return result;
 }
 
-static void mime_subparts_free(void *ptr)
-{
-  curl_mime *mime = (curl_mime *) ptr;
-  curl_mime_free(mime);
-}
-
-
 /* Release part content. */
 static void cleanup_part_content(curl_mimepart *part)
 {
@@ -1091,10 +1081,33 @@ static void cleanup_part_content(curl_mimepart *part)
   part->data = NULL;
   part->fp = NULL;
   part->datasize = (curl_off_t) 0;    /* No size yet. */
-  part->encoder = NULL;
   cleanup_encoder_state(&part->encstate);
   part->kind = MIMEKIND_NONE;
 }
+
+static void mime_subparts_free(void *ptr)
+{
+  curl_mime *mime = (curl_mime *) ptr;
+
+  if(mime && mime->parent) {
+    mime->parent->freefunc = NULL;  /* Be sure we won't be called again. */
+    cleanup_part_content(mime->parent);  /* Avoid dangling pointer in part. */
+  }
+  curl_mime_free(mime);
+}
+
+/* Do not free subparts: unbind them. This is used for the top level only. */
+static void mime_subparts_unbind(void *ptr)
+{
+  curl_mime *mime = (curl_mime *) ptr;
+
+  if(mime && mime->parent) {
+    mime->parent->freefunc = NULL;  /* Be sure we won't be called again. */
+    cleanup_part_content(mime->parent);  /* Avoid dangling pointer in part. */
+    mime->parent = NULL;
+  }
+}
+
 
 void Curl_mime_cleanpart(curl_mimepart *part)
 {
@@ -1114,6 +1127,7 @@ void curl_mime_free(curl_mime *mime)
   curl_mimepart *part;
 
   if(mime) {
+    mime_subparts_unbind(mime);  /* Be sure it's not referenced anymore. */
     while(mime->firstpart) {
       part = mime->firstpart;
       mime->firstpart = part->nextpart;
@@ -1124,6 +1138,78 @@ void curl_mime_free(curl_mime *mime)
     free(mime->boundary);
     free(mime);
   }
+}
+
+CURLcode Curl_mime_duppart(curl_mimepart *dst, const curl_mimepart *src)
+{
+  curl_mime *mime;
+  curl_mimepart *d;
+  const curl_mimepart *s;
+  CURLcode res = CURLE_OK;
+
+  /* Duplicate content. */
+  switch(src->kind) {
+  case MIMEKIND_NONE:
+    break;
+  case MIMEKIND_DATA:
+    res = curl_mime_data(dst, src->data, (size_t) src->datasize);
+    break;
+  case MIMEKIND_FILE:
+    res = curl_mime_filedata(dst, src->data);
+    /* Do not abort duplication if file is not readable. */
+    if(res == CURLE_READ_ERROR)
+      res = CURLE_OK;
+    break;
+  case MIMEKIND_CALLBACK:
+    res = curl_mime_data_cb(dst, src->datasize, src->readfunc,
+                            src->seekfunc, src->freefunc, src->arg);
+    break;
+  case MIMEKIND_MULTIPART:
+    /* No one knows about the cloned subparts, thus always attach ownership
+       to the part. */
+    mime = curl_mime_init(dst->easy);
+    res = mime? curl_mime_subparts(dst, mime): CURLE_OUT_OF_MEMORY;
+
+    /* Duplicate subparts. */
+    for(s = ((curl_mime *) src->arg)->firstpart; !res && s; s = s->nextpart) {
+      d = curl_mime_addpart(mime);
+      res = d? Curl_mime_duppart(d, s): CURLE_OUT_OF_MEMORY;
+    }
+    break;
+  default:  /* Invalid kind: should not occur. */
+    res = CURLE_BAD_FUNCTION_ARGUMENT;  /* Internal error? */
+    break;
+  }
+
+  /* Duplicate headers. */
+  if(!res && src->userheaders) {
+    struct curl_slist *hdrs = Curl_slist_duplicate(src->userheaders);
+
+    if(!hdrs)
+      res = CURLE_OUT_OF_MEMORY;
+    else {
+      /* No one but this procedure knows about the new header list,
+         so always take ownership. */
+      res = curl_mime_headers(dst, hdrs, TRUE);
+      if(res)
+        curl_slist_free_all(hdrs);
+    }
+  }
+
+  /* Duplicate other fields. */
+  dst->encoder = src->encoder;
+  if(!res)
+    res = curl_mime_type(dst, src->mimetype);
+  if(!res)
+    res = curl_mime_name(dst, src->name);
+  if(!res)
+    res = curl_mime_filename(dst, src->filename);
+
+  /* If an error occurred, rollback. */
+  if(res)
+    Curl_mime_cleanpart(dst);
+
+  return res;
 }
 
 /*
@@ -1193,26 +1279,18 @@ curl_mimepart *curl_mime_addpart(curl_mime *mime)
 }
 
 /* Set mime part name. */
-CURLcode curl_mime_name(curl_mimepart *part,
-                        const char *name, size_t namesize)
+CURLcode curl_mime_name(curl_mimepart *part, const char *name)
 {
   if(!part)
     return CURLE_BAD_FUNCTION_ARGUMENT;
 
   Curl_safefree(part->name);
   part->name = NULL;
-  part->namesize = 0;
 
   if(name) {
-    if(namesize == CURL_ZERO_TERMINATED)
-      namesize = strlen(name);
-    part->name = malloc(namesize + 1);
+    part->name = strdup(name);
     if(!part->name)
       return CURLE_OUT_OF_MEMORY;
-    if(namesize)
-      memcpy(part->name, name, namesize);
-    part->name[namesize] = '\0';
-    part->namesize = namesize;
   }
 
   return CURLE_OK;
@@ -1366,7 +1444,8 @@ CURLcode curl_mime_headers(curl_mimepart *part,
     return CURLE_BAD_FUNCTION_ARGUMENT;
 
   if(part->flags & MIME_USERHEADERS_OWNER) {
-    curl_slist_free_all(part->userheaders);
+    if(part->userheaders != headers)  /* Allow setting twice the same list. */
+      curl_slist_free_all(part->userheaders);
     part->flags &= ~MIME_USERHEADERS_OWNER;
   }
   part->userheaders = headers;
@@ -1399,9 +1478,11 @@ CURLcode curl_mime_data_cb(curl_mimepart *part, curl_off_t datasize,
 }
 
 /* Set mime part content from subparts. */
-CURLcode curl_mime_subparts(curl_mimepart *part,
-                            curl_mime *subparts)
+CURLcode Curl_mime_set_subparts(curl_mimepart *part,
+                                curl_mime *subparts, int take_ownership)
 {
+  curl_mime *root;
+
   if(!part)
     return CURLE_BAD_FUNCTION_ARGUMENT;
 
@@ -1420,16 +1501,33 @@ CURLcode curl_mime_subparts(curl_mimepart *part,
     if(subparts->parent)
       return CURLE_BAD_FUNCTION_ARGUMENT;
 
+    /* Should not be the part's root. */
+    root = part->parent;
+    if(root) {
+      while(root->parent && root->parent->parent)
+        root = root->parent->parent;
+      if(subparts == root) {
+        if(part->easy)
+          failf(part->easy, "Can't add itself as a subpart!");
+        return CURLE_BAD_FUNCTION_ARGUMENT;
+      }
+    }
+
     subparts->parent = part;
     part->readfunc = mime_subparts_read;
     part->seekfunc = mime_subparts_seek;
-    part->freefunc = mime_subparts_free;
+    part->freefunc = take_ownership? mime_subparts_free: mime_subparts_unbind;
     part->arg = subparts;
     part->datasize = -1;
     part->kind = MIMEKIND_MULTIPART;
   }
 
   return CURLE_OK;
+}
+
+CURLcode curl_mime_subparts(curl_mimepart *part, curl_mime *subparts)
+{
+  return Curl_mime_set_subparts(part, subparts, TRUE);
 }
 
 
@@ -1495,7 +1593,7 @@ curl_off_t Curl_mime_size(curl_mimepart *part)
 {
   curl_off_t size;
 
-  if(part->datasize < 0 && part->kind == MIMEKIND_MULTIPART)
+  if(part->kind == MIMEKIND_MULTIPART)
     part->datasize = multipart_size(part->arg);
 
   size = part->datasize;
@@ -1591,7 +1689,7 @@ CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
 {
   curl_mime *mime = NULL;
   const char *boundary = NULL;
-  char *s;
+  char *customct;
   const char *cte = NULL;
   CURLcode ret = CURLE_OK;
 
@@ -1601,14 +1699,16 @@ CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
 
   /* Be sure we won't access old headers later. */
   if(part->state.state == MIMESTATE_CURLHEADERS)
-    mimesetstate(&mime->state, MIMESTATE_CURLHEADERS, NULL);
+    mimesetstate(&part->state, MIMESTATE_CURLHEADERS, NULL);
 
-  /* Build the content-type header. */
-  s = search_header(part->userheaders, "Content-Type");
-  if(s)
-    contenttype = s;
-  if(part->mimetype)
-    contenttype = part->mimetype;
+  /* Check if content type is specified. */
+  customct = part->mimetype;
+  if(!customct)
+    customct = search_header(part->userheaders, "Content-Type");
+  if(customct)
+    contenttype = customct;
+
+  /* If content type is not specified, try to determine it. */
   if(!contenttype) {
     switch(part->kind) {
     case MIMEKIND_MULTIPART:
@@ -1632,7 +1732,8 @@ CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
     if(mime)
       boundary = mime->boundary;
   }
-  else if(contenttype && strcasecompare(contenttype, "text/plain"))
+  else if(contenttype && !customct &&
+          strcasecompare(contenttype, "text/plain"))
     if(strategy == MIMESTRATEGY_MAIL || !part->filename)
       contenttype = NULL;
 
@@ -1650,12 +1751,12 @@ CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
       char *filename = NULL;
 
       if(part->name) {
-        name = escape_string(part->name, part->namesize);
+        name = escape_string(part->name);
         if(!name)
           ret = CURLE_OUT_OF_MEMORY;
       }
       if(!ret && part->filename) {
-        filename = escape_string(part->filename, CURL_ZERO_TERMINATED);
+        filename = escape_string(part->filename);
         if(!filename)
           ret = CURLE_OUT_OF_MEMORY;
       }
@@ -1701,7 +1802,7 @@ CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
   /* If we were reading curl-generated headers, restart with new ones (this
      should not occur). */
   if(part->state.state == MIMESTATE_CURLHEADERS)
-    mimesetstate(&mime->state, MIMESTATE_CURLHEADERS, part->curlheaders);
+    mimesetstate(&part->state, MIMESTATE_CURLHEADERS, part->curlheaders);
 
   /* Process subparts. */
   if(part->kind == MIMEKIND_MULTIPART && mime) {
@@ -1739,12 +1840,10 @@ curl_mimepart *curl_mime_addpart(curl_mime *mime)
   return NULL;
 }
 
-CURLcode curl_mime_name(curl_mimepart *part,
-                        const char *name, size_t namesize)
+CURLcode curl_mime_name(curl_mimepart *part, const char *name)
 {
   (void) part;
   (void) name;
-  (void) namesize;
   return CURLE_NOT_BUILT_IN;
 }
 
@@ -1826,6 +1925,22 @@ void Curl_mime_initpart(curl_mimepart *part, struct Curl_easy *easy)
 void Curl_mime_cleanpart(curl_mimepart *part)
 {
   (void) part;
+}
+
+CURLcode Curl_mime_duppart(curl_mimepart *dst, const curl_mimepart *src)
+{
+  (void) dst;
+  (void) src;
+  return CURLE_OK;    /* Nothing to duplicate: always succeed. */
+}
+
+CURLcode Curl_mime_set_subparts(curl_mimepart *part,
+                                curl_mime *subparts, int take_ownership)
+{
+  (void) part;
+  (void) subparts;
+  (void) take_ownership;
+  return CURLE_NOT_BUILT_IN;
 }
 
 CURLcode Curl_mime_prepare_headers(curl_mimepart *part,

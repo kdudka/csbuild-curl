@@ -165,6 +165,9 @@ static CURLcode file_range(struct connectdata *conn)
     else {
       /* X-Y */
       totalsize = to-from;
+      if(totalsize == CURL_OFF_T_MAX)
+        /* this is too big to increase, so bail out */
+        return CURLE_RANGE_ERROR;
       data->req.maxdownload = totalsize + 1; /* include last byte */
       data->state.resume_from = from;
       DEBUGF(infof(data, "RANGE from %" CURL_FORMAT_CURL_OFF_T
@@ -401,7 +404,7 @@ static CURLcode file_upload(struct connectdata *conn)
     if(Curl_pgrsUpdate(conn))
       result = CURLE_ABORTED_BY_CALLBACK;
     else
-      result = Curl_speedcheck(data, Curl_tvnow());
+      result = Curl_speedcheck(data, Curl_now());
   }
   if(!result && Curl_pgrsUpdate(conn))
     result = CURLE_ABORTED_BY_CALLBACK;
@@ -586,7 +589,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
     if(Curl_pgrsUpdate(conn))
       result = CURLE_ABORTED_BY_CALLBACK;
     else
-      result = Curl_speedcheck(data, Curl_tvnow());
+      result = Curl_speedcheck(data, Curl_now());
   }
   if(Curl_pgrsUpdate(conn))
     result = CURLE_ABORTED_BY_CALLBACK;

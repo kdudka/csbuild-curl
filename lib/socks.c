@@ -57,7 +57,7 @@ int Curl_blockread_all(struct connectdata *conn, /* connection data */
   ssize_t nread;
   ssize_t allread = 0;
   int result;
-  time_t timeleft;
+  timediff_t timeleft;
   *n = 0;
   for(;;) {
     timeleft = Curl_timeleft(conn->data, NULL, TRUE);
@@ -306,7 +306,7 @@ CURLcode Curl_SOCKS4(const char *proxy_user,
             ", request rejected or failed.",
             (unsigned char)socksreq[4], (unsigned char)socksreq[5],
             (unsigned char)socksreq[6], (unsigned char)socksreq[7],
-            (((unsigned char)socksreq[8] << 8) | (unsigned char)socksreq[9]),
+            (((unsigned char)socksreq[2] << 8) | (unsigned char)socksreq[3]),
             (unsigned char)socksreq[1]);
       return CURLE_COULDNT_CONNECT;
     case 92:
@@ -316,7 +316,7 @@ CURLcode Curl_SOCKS4(const char *proxy_user,
             "identd on the client.",
             (unsigned char)socksreq[4], (unsigned char)socksreq[5],
             (unsigned char)socksreq[6], (unsigned char)socksreq[7],
-            (((unsigned char)socksreq[8] << 8) | (unsigned char)socksreq[9]),
+            (((unsigned char)socksreq[2] << 8) | (unsigned char)socksreq[3]),
             (unsigned char)socksreq[1]);
       return CURLE_COULDNT_CONNECT;
     case 93:
@@ -326,7 +326,7 @@ CURLcode Curl_SOCKS4(const char *proxy_user,
             "report different user-ids.",
             (unsigned char)socksreq[4], (unsigned char)socksreq[5],
             (unsigned char)socksreq[6], (unsigned char)socksreq[7],
-            (((unsigned char)socksreq[8] << 8) | (unsigned char)socksreq[9]),
+            (((unsigned char)socksreq[2] << 8) | (unsigned char)socksreq[3]),
             (unsigned char)socksreq[1]);
       return CURLE_COULDNT_CONNECT;
     default:
@@ -335,7 +335,7 @@ CURLcode Curl_SOCKS4(const char *proxy_user,
             ", Unknown.",
             (unsigned char)socksreq[4], (unsigned char)socksreq[5],
             (unsigned char)socksreq[6], (unsigned char)socksreq[7],
-            (((unsigned char)socksreq[8] << 8) | (unsigned char)socksreq[9]),
+            (((unsigned char)socksreq[2] << 8) | (unsigned char)socksreq[3]),
             (unsigned char)socksreq[1]);
       return CURLE_COULDNT_CONNECT;
     }
@@ -382,7 +382,7 @@ CURLcode Curl_SOCKS5(const char *proxy_user,
   CURLcode code;
   curl_socket_t sock = conn->sock[sockindex];
   struct Curl_easy *data = conn->data;
-  time_t timeout;
+  timediff_t timeout;
   bool socks5_resolve_local =
     (conn->socks_proxy.proxytype == CURLPROXY_SOCKS5) ? TRUE : FALSE;
   const size_t hostname_len = strlen(hostname);

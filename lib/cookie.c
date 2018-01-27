@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2017, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2018, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -309,7 +309,7 @@ static void remove_expired(struct CookieInfo *cookies)
   while(co) {
     nx = co->next;
     if(co->expires && co->expires < now) {
-      if(co == cookies->cookies) {
+      if(!pv) {
         cookies->cookies = co->next;
       }
       else {
@@ -375,7 +375,6 @@ Curl_cookie_add(struct Curl_easy *data,
                                        unless set */
 {
   struct Cookie *clist;
-  char name[MAX_NAME];
   struct Cookie *co;
   struct Cookie *lastc = NULL;
   time_t now = time(NULL);
@@ -397,12 +396,14 @@ Curl_cookie_add(struct Curl_easy *data,
 
   if(httpheader) {
     /* This line was read off a HTTP-header */
+    char name[MAX_NAME];
+    char what[MAX_NAME];
     const char *ptr;
     const char *semiptr;
-    char *what;
 
-    what = malloc(MAX_COOKIE_LINE);
-    if(!what) {
+    size_t linelength = strlen(lineptr);
+    if(linelength > MAX_COOKIE_LINE) {
+      /* discard overly long lines at once */
       free(co);
       return NULL;
     }
@@ -417,7 +418,7 @@ Curl_cookie_add(struct Curl_easy *data,
       /* we have a <what>=<this> pair or a stand-alone word here */
       name[0] = what[0] = 0; /* init the buffers */
       if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n=] =%"
-                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
+                     MAX_NAME_TXT "[^;\r\n]",
                      name, what)) {
         /* Use strstore() below to properly deal with received cookie
            headers that have the same string property set more than once,
@@ -428,6 +429,17 @@ Curl_cookie_add(struct Curl_easy *data,
         size_t len = strlen(what);
         size_t nlen = strlen(name);
         const char *endofn = &ptr[ nlen ];
+
+        if(nlen >= (MAX_NAME-1) || len >= (MAX_NAME-1) ||
+           ((nlen + len) > MAX_NAME)) {
+          /* too long individual name or contents, or too long combination of
+             name + contents. Chrome and Firefox support 4095 or 4096 bytes
+             combo. */
+          freecookie(co);
+          infof(data, "oversized cookie dropped, name/val %d + %d bytes\n",
+                nlen, len);
+          return NULL;
+        }
 
         /* name ends with a '=' ? */
         sep = (*endofn == '=')?TRUE:FALSE;
@@ -484,6 +496,7 @@ Curl_cookie_add(struct Curl_easy *data,
             badcookie = TRUE; /* out of memory bad */
             break;
           }
+          free(co->spath); /* if this is set again */
           co->spath = sanitize_cookie_path(co->path);
           if(!co->spath) {
             badcookie = TRUE; /* out of memory bad */
@@ -658,8 +671,6 @@ Curl_cookie_add(struct Curl_easy *data,
           badcookie = TRUE;
       }
     }
-
-    free(what);
 
     if(badcookie || !co->name) {
       /* we didn't get a cookie name or a bad one,
@@ -1389,7 +1400,7 @@ static int cookie_output(struct CookieInfo *c, const char *dumphere)
   return 0;
 }
 
-struct curl_slist *Curl_cookie_list(struct Curl_easy *data)
+static struct curl_slist *cookie_list(struct Curl_easy *data)
 {
   struct curl_slist *list = NULL;
   struct curl_slist *beg;
@@ -1417,6 +1428,15 @@ struct curl_slist *Curl_cookie_list(struct Curl_easy *data)
     list = beg;
   }
 
+  return list;
+}
+
+struct curl_slist *Curl_cookie_list(struct Curl_easy *data)
+{
+  struct curl_slist *list;
+  Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+  list = cookie_list(data);
+  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
   return list;
 }
 

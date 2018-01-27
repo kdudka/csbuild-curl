@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2017, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2018, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -111,7 +111,6 @@ struct curl_mimepart_s {
   char *mimetype;                  /* Part mime type. */
   char *filename;                  /* Remote file name. */
   char *name;                      /* Data name. */
-  size_t namesize;                 /* Data name size. */
   curl_off_t datasize;             /* Expected data size. */
   unsigned int flags;              /* Flags. */
   mime_state state;                /* Current readback state. */
@@ -123,6 +122,9 @@ struct curl_mimepart_s {
 /* Prototypes. */
 void Curl_mime_initpart(curl_mimepart *part, struct Curl_easy *easy);
 void Curl_mime_cleanpart(curl_mimepart *part);
+CURLcode Curl_mime_duppart(curl_mimepart *dst, const curl_mimepart *src);
+CURLcode Curl_mime_set_subparts(curl_mimepart *part,
+                                curl_mime *subparts, int take_ownership);
 CURLcode Curl_mime_prepare_headers(curl_mimepart *part,
                                    const char *contenttype,
                                    const char *disposition,
