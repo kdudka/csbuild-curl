@@ -162,6 +162,7 @@ static CURLcode http2_disconnect(struct connectdata *conn,
   nghttp2_session_del(c->h2);
   Curl_safefree(c->inbuf);
   http2_stream_free(conn->data->req.protop);
+  conn->data->state.drain = 0;
 
   H2BUGF(infof(conn->data, "HTTP/2 DISCONNECT done\n"));
 
@@ -1105,7 +1106,6 @@ void Curl_http2_done(struct connectdata *conn, bool premature)
   struct http_conn *httpc = &conn->proto.httpc;
 
   if(http->header_recvbuf) {
-    H2BUGF(infof(data, "free header_recvbuf!!\n"));
     Curl_add_buffer_free(http->header_recvbuf);
     http->header_recvbuf = NULL; /* clear the pointer */
     Curl_add_buffer_free(http->trailer_recvbuf);
@@ -1375,7 +1375,15 @@ static ssize_t http2_handle_stream_close(struct connectdata *conn,
 
   /* Reset to FALSE to prevent infinite loop in readwrite_data function. */
   stream->closed = FALSE;
-  if(httpc->error_code != NGHTTP2_NO_ERROR) {
+  if(httpc->error_code == NGHTTP2_REFUSED_STREAM) {
+    H2BUGF(infof(data, "REFUSED_STREAM (%d), try again on a new connection!\n",
+                 stream->stream_id));
+    connclose(conn, "REFUSED_STREAM"); /* don't use this anymore */
+    data->state.refused_stream = TRUE;
+    *err = CURLE_RECV_ERROR; /* trigger Curl_retry_request() later */
+    return -1;
+  }
+  else if(httpc->error_code != NGHTTP2_NO_ERROR) {
     failf(data, "HTTP/2 stream %u was not closed cleanly: %s (err %d)",
           stream->stream_id, Curl_http2_strerror(httpc->error_code),
           httpc->error_code);
@@ -1603,9 +1611,9 @@ static ssize_t http2_recv(struct connectdata *conn, int sockindex,
       }
 
       if(nread == 0) {
-        failf(data, "Unexpected EOF");
-        *err = CURLE_RECV_ERROR;
-        return -1;
+        H2BUGF(infof(data, "end of stream\n"));
+        *err = CURLE_OK;
+        return 0;
       }
 
       H2BUGF(infof(data, "nread=%zd\n", nread));
@@ -1851,8 +1859,11 @@ static ssize_t http2_send(struct connectdata *conn, int sockindex,
     return -1;
   }
 
-  /* Extract :method, :path from request line */
-  line_end = strstr(hdbuf, "\r\n");
+  /* Extract :method, :path from request line
+     We do line endings with CRLF so checking for CR is enough */
+  line_end = memchr(hdbuf, '\r', len);
+  if(!line_end)
+    goto fail;
 
   /* Method does not contain spaces */
   end = memchr(hdbuf, ' ', line_end - hdbuf);
