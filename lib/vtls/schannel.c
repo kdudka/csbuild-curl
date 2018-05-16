@@ -90,10 +90,16 @@
 #endif
 #endif
 
+#if defined(CryptStringToBinary) && defined(CRYPT_STRING_HEX)
+#define HAS_CLIENT_CERT_PATH
+#endif
+
+#ifdef HAS_CLIENT_CERT_PATH
 #ifdef UNICODE
 #define CURL_CERT_STORE_PROV_SYSTEM CERT_STORE_PROV_SYSTEM_W
 #else
 #define CURL_CERT_STORE_PROV_SYSTEM CERT_STORE_PROV_SYSTEM_A
+#endif
 #endif
 
 #ifndef SP_PROT_SSL2_CLIENT
@@ -199,6 +205,7 @@ set_ssl_version_min_max(SCHANNEL_CRED *schannel_cred, struct connectdata *conn)
   return CURLE_OK;
 }
 
+#ifdef HAS_CLIENT_CERT_PATH
 static CURLcode
 get_cert_location(TCHAR *path, DWORD *store_name, TCHAR **store_path,
                   TCHAR **thumbprint)
@@ -248,6 +255,7 @@ get_cert_location(TCHAR *path, DWORD *store_name, TCHAR **store_path,
 
   return CURLE_OK;
 }
+#endif
 
 static CURLcode
 schannel_connect_step1(struct connectdata *conn, int sockindex)
@@ -299,10 +307,15 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
 #endif
 
 #ifdef _WIN32_WCE
+#ifdef HAS_MANUAL_VERIFY_API
   /* certificate validation on CE doesn't seem to work right; we'll
    * do it following a more manual process. */
   BACKEND->use_manual_cred_validation = true;
 #else
+#error "compiler too old to support requisite manual cert verify for Win CE"
+#endif
+#else
+#ifdef HAS_MANUAL_VERIFY_API
   if(SSL_CONN_CONFIG(CAfile)) {
     if(Curl_verify_windows_version(6, 1, PLATFORM_WINNT,
                                    VERSION_GREATER_THAN_EQUAL)) {
@@ -316,6 +329,12 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
   }
   else
     BACKEND->use_manual_cred_validation = false;
+#else
+  if(SSL_CONN_CONFIG(CAfile)) {
+    failf(data, "schannel: CA cert support not built in");
+    return CURLE_NOT_BUILT_IN;
+  }
+#endif
 #endif
 
   BACKEND->cred = NULL;
@@ -341,9 +360,11 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
     schannel_cred.dwVersion = SCHANNEL_CRED_VERSION;
 
     if(conn->ssl_config.verifypeer) {
+#ifdef HAS_MANUAL_VERIFY_API
       if(BACKEND->use_manual_cred_validation)
         schannel_cred.dwFlags = SCH_CRED_MANUAL_CRED_VALIDATION;
       else
+#endif
         schannel_cred.dwFlags = SCH_CRED_AUTO_CRED_VALIDATION;
 
       /* TODO s/data->set.ssl.no_revoke/SSL_SET_OPTION(no_revoke)/g */
@@ -401,6 +422,7 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
       return CURLE_SSL_CONNECT_ERROR;
     }
 
+#ifdef HAS_CLIENT_CERT_PATH
     /* client certificate */
     if(data->set.ssl.cert) {
       DWORD cert_store_name;
@@ -453,6 +475,12 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
 
       CertCloseStore(cert_store, 0);
     }
+#else
+    if(data->set.ssl.cert) {
+      failf(data, "schannel: client cert support not built in");
+      return CURLE_NOT_BUILT_IN;
+    }
+#endif
 
     /* allocate memory for the re-usable credential handle */
     BACKEND->cred = (struct curl_schannel_cred *)
@@ -877,9 +905,11 @@ schannel_connect_step2(struct connectdata *conn, int sockindex)
     }
   }
 
+#ifdef HAS_MANUAL_VERIFY_API
   if(conn->ssl_config.verifypeer && BACKEND->use_manual_cred_validation) {
     return verify_certificate(conn, sockindex);
   }
+#endif
 
   return CURLE_OK;
 }
