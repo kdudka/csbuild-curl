@@ -51,6 +51,8 @@ CFLAG_CURL_SYMBOL_HIDING = @CFLAG_CURL_SYMBOL_HIDING@
 
 CFLAGS += @CURL_CFLAG_EXTRAS@
 
+CLEANFILES = lib1521.c
+
 # Prevent LIBS from being used for all link targets
 LIBS = $(BLANK_AT_MAKETIME)
 
@@ -131,6 +133,3 @@ lib1521.c: $(top_srcdir)/tests/libtest/mk-lib1521.pl $(top_srcdir)/include/curl/
 
 checksrc:
 	@PERL@ $(top_srcdir)/lib/checksrc.pl $(srcdir)/*.c
-
-dist:
-	rm lib1521.c
