@@ -3653,17 +3653,12 @@ AC_CHECK_FUNCS([fnmatch \
   fi
 ])
 
-dnl Check if the getnameinfo function is available
-dnl and get the types of five of its arguments.
-CURL_CHECK_FUNC_GETNAMEINFO
-
 if test "$ipv6" = "yes"; then
   if test "$curl_cv_func_getaddrinfo" = "yes"; then
     AC_DEFINE(ENABLE_IPV6, 1, [Define if you want to enable IPv6 support])
     IPV6_ENABLED=1
     AC_SUBST(IPV6_ENABLED)
   fi
-  CURL_CHECK_NI_WITHSCOPEID
 fi
 
 CURL_CHECK_NONBLOCKING_SOCKET
