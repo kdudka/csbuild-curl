@@ -38,7 +38,7 @@
 # To check:
 # (From Daniel Stenberg) The cmake build selected to run gcc with -fPIC on my box while the plain configure script did not.
 # (From Daniel Stenberg) The gcc command line use neither -g nor any -O options. As a developer, I also treasure our configure scripts's --enable-debug option that sets a long range of "picky" compiler options.
-cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
 include(Utilities)
 include(Macros)
@@ -76,7 +76,7 @@ include_directories(${CURL_SOURCE_DIR}/include)
 option(CURL_WERROR "Turn compiler warnings into errors" OFF)
 option(PICKY_COMPILER "Enable picky compiler options" ON)
 option(BUILD_CURL_EXE "Set to ON to build curl executable." ON)
-option(CURL_STATICLIB "Set to ON to build libcurl with static linking." OFF)
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ENABLE_ARES "Set to ON to enable c-ares support" OFF)
 if(WIN32)
   option(CURL_STATIC_CRT "Set to ON to build libcurl with static CRT on Windows (/MT)." OFF)
@@ -352,8 +352,8 @@ if(CMAKE_USE_OPENSSL)
   set(USE_OPENSSL ON)
   set(HAVE_LIBCRYPTO ON)
   set(HAVE_LIBSSL ON)
-  list(APPEND CURL_LIBS ${OPENSSL_LIBRARIES})
-  include_directories(${OPENSSL_INCLUDE_DIR})
+  list(APPEND CURL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+
   set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
   check_include_file("openssl/crypto.h" HAVE_OPENSSL_CRYPTO_H)
   check_include_file("openssl/err.h"    HAVE_OPENSSL_ERR_H)
@@ -1247,11 +1247,12 @@ set(CONFIGURE_OPTIONS       "")
 # TODO when to set "-DCURL_STATICLIB" for CPPFLAG_CURL_STATICLIB?
 set(CPPFLAG_CURL_STATICLIB  "")
 set(CURLVERSION             "${CURL_VERSION}")
-set(ENABLE_SHARED           "yes")
-if(CURL_STATICLIB)
-  set(ENABLE_STATIC         "yes")
-else()
+if(BUILD_SHARED_LIBS)
+  set(ENABLE_SHARED         "yes")
   set(ENABLE_STATIC         "no")
+else()
+  set(ENABLE_SHARED         "no")
+  set(ENABLE_STATIC         "yes")
 endif()
 set(exec_prefix             "\${prefix}")
 set(includedir              "\${prefix}/include")
@@ -1275,6 +1276,9 @@ set(REQUIRE_LIB_DEPS        "no")
 set(VERSIONNUM              "${CURL_VERSION_NUM}")
 
 # Finally generate a "curl-config" matching this config
+# Use:
+# * ENABLE_SHARED
+# * ENABLE_STATIC
 configure_file("${CURL_SOURCE_DIR}/curl-config.in"
                "${CURL_BINARY_DIR}/curl-config" @ONLY)
 install(FILES "${CURL_BINARY_DIR}/curl-config"
@@ -1308,9 +1312,9 @@ write_basic_package_version_file(
     COMPATIBILITY SameMajorVersion
 )
 
-configure_file(CMake/curl-config.cmake
+configure_file(CMake/curl-config.cmake.in
         "${PROJECT_BINARY_DIR}/curl-config.cmake"
-        COPYONLY
+        @ONLY
 )
 
 install(
