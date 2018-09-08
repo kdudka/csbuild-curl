@@ -21,7 +21,7 @@
 .\" **************************************************************************
 .TH curl_url_set 3 "6 Aug 2018" "libcurl" "libcurl Manual"
 .SH NAME
-curl_url_set - set a part from a URL
+curl_url_set - set a URL part
 .SH SYNOPSIS
 .B #include <curl/curl.h>
 
@@ -114,7 +114,7 @@ If this function returns an error, no URL part is returned.
   curl_url_cleanup(url);
 .fi
 .SH AVAILABILITY
-Added in curl 7.63.0
+Added in curl 7.62.0
 .SH "SEE ALSO"
 .BR curl_url_cleanup "(3), " curl_url "(3), " curl_url_get "(3), "
 .BR curl_url_dup "(3), "
