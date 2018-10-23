@@ -1502,10 +1502,8 @@ CURLcode Curl_follow(struct Curl_easy *data,
         }
 
         data->change.referer = strdup(data->change.url);
-        if(!data->change.referer) {
-          free(newurl);
+        if(!data->change.referer)
           return CURLE_OUT_OF_MEMORY;
-        }
         data->change.referer_alloc = TRUE; /* yes, free this later */
       }
     }
@@ -1518,13 +1516,11 @@ CURLcode Curl_follow(struct Curl_easy *data,
   DEBUGASSERT(data->state.uh);
   uc = curl_url_set(data->state.uh, CURLUPART_URL, newurl, 0);
   if(uc)
-    /* TODO: consider an error code remap here */
-    return CURLE_URL_MALFORMAT;
+    return Curl_uc_to_curlcode(uc);
 
   uc = curl_url_get(data->state.uh, CURLUPART_URL, &newurl, 0);
   if(uc)
-    /* TODO: consider an error code remap here */
-    return CURLE_OUT_OF_MEMORY;
+    return Curl_uc_to_curlcode(uc);
 
   if(type == FOLLOW_FAKE) {
     /* we're only figuring out the new url if we would've followed locations
