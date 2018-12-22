@@ -769,7 +769,6 @@ CURLcode Curl_disconnect(struct Curl_easy *data,
     return CURLE_OK;
   }
 
-  conn->data = data;
   if(conn->dns_entry != NULL) {
     Curl_resolv_unlock(data, conn->dns_entry);
     conn->dns_entry = NULL;
@@ -788,14 +787,13 @@ CURLcode Curl_disconnect(struct Curl_easy *data,
 
     /* unlink ourselves! */
   infof(data, "Closing connection %ld\n", conn->connection_id);
-  Curl_conncache_remove_conn(conn, TRUE);
+  Curl_conncache_remove_conn(data, conn, TRUE);
 
   free_idnconverted_hostname(&conn->host);
   free_idnconverted_hostname(&conn->conn_to_host);
   free_idnconverted_hostname(&conn->http_proxy.host);
   free_idnconverted_hostname(&conn->socks_proxy.host);
 
-  DEBUGASSERT(conn->data == data);
   /* this assumes that the pointer is still there after the connection was
      detected from the cache */
   Curl_ssl_close(conn, FIRSTSOCKET);
@@ -960,8 +958,6 @@ static bool extract_if_dead(struct connectdata *conn,
        handles in pipeline and the connection isn't already marked in
        use */
     bool dead;
-
-    conn->data = data;
     if(conn->handler->connection_check) {
       /* The protocol has a special method for checking the state of the
          connection. Use it to check if the connection is dead. */
@@ -977,8 +973,7 @@ static bool extract_if_dead(struct connectdata *conn,
 
     if(dead) {
       infof(data, "Connection %ld seems to be dead!\n", conn->connection_id);
-      Curl_conncache_remove_conn(conn, FALSE);
-      conn->data = NULL; /* detach */
+      Curl_conncache_remove_conn(data, conn, FALSE);
       return TRUE;
     }
   }
@@ -1102,7 +1097,7 @@ ConnectionExists(struct Curl_easy *data,
         if((bundle->multiuse == BUNDLE_UNKNOWN) && data->set.pipewait) {
           infof(data, "Server doesn't support multi-use yet, wait\n");
           *waitpipe = TRUE;
-          Curl_conncache_unlock(needle);
+          Curl_conncache_unlock(data);
           return FALSE; /* no re-use */
         }
 
@@ -1462,11 +1457,11 @@ ConnectionExists(struct Curl_easy *data,
   if(chosen) {
     /* mark it as used before releasing the lock */
     chosen->data = data; /* own it! */
-    Curl_conncache_unlock(needle);
+    Curl_conncache_unlock(data);
     *usethis = chosen;
     return TRUE; /* yes, we found one to use! */
   }
-  Curl_conncache_unlock(needle);
+  Curl_conncache_unlock(data);
 
   if(foundPendingCandidate && data->set.pipewait) {
     infof(data,
@@ -3955,7 +3950,7 @@ static CURLcode create_conn(struct Curl_easy *data,
 
         /* The bundle is full. Extract the oldest connection. */
         conn_candidate = Curl_conncache_extract_bundle(data, bundle);
-        Curl_conncache_unlock(conn);
+        Curl_conncache_unlock(data);
 
         if(conn_candidate)
           (void)Curl_disconnect(data, conn_candidate,
@@ -3967,7 +3962,7 @@ static CURLcode create_conn(struct Curl_easy *data,
         }
       }
       else
-        Curl_conncache_unlock(conn);
+        Curl_conncache_unlock(data);
 
     }
 
