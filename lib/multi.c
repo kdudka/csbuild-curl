@@ -1155,17 +1155,6 @@ CURLMcode curl_multi_wait(struct Curl_multi *multi,
 {
   return Curl_multi_wait(multi, extra_fds, extra_nfds, timeout_ms, ret, NULL);
 }
-/*
- * Curl_multi_connchanged() is called to tell that there is a connection in
- * this multi handle that has changed state (pipelining become possible, the
- * number of allowed streams changed or similar), and a subsequent use of this
- * multi handle should move CONNECT_PEND handles back to CONNECT to have them
- * retry.
- */
-void Curl_multi_connchanged(struct Curl_multi *multi)
-{
-  multi->recheckstate = TRUE;
-}
 
 /*
  * multi_ischanged() is called
@@ -3031,9 +3020,6 @@ void Curl_expire(struct Curl_easy *data, time_t milli, expire_id id)
     return;
 
   DEBUGASSERT(id < EXPIRE_LAST);
-
-  infof(data, "Expire in %ld ms for %x (transfer %p)\n",
-        (long)milli, id, data);
 
   set = Curl_now();
   set.tv_sec += milli/1000;
