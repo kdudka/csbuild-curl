@@ -45,6 +45,7 @@
  1.26 CURL_REFUSE_CLEARTEXT
  1.27 hardcode the "localhost" addresses
  1.28 FD_CLOEXEC
+ 1.29 Upgrade to websockets
 
  2. libcurl - multi interface
  2.1 More non-blocking
@@ -165,6 +166,7 @@
  19. Build
  19.1 roffit
  19.2 Enable PIE and RELRO by default
+ 19.3 cmake test suite improvements
 
  20. Test suite
  20.1 SSL tunnel
@@ -447,6 +449,14 @@
  exec-family functions succeed. Should probably be set by default?
 
  https://github.com/curl/curl/issues/2252
+
+1.29 Upgrade to websockets
+
+ libcurl could offer a smoother path to get to a websocket connection.
+ See https://github.com/curl/curl/issues/3523
+
+ Michael Kaufmann suggestion here:
+ https://curl.haxx.se/video/curlup-2017/2017-03-19_05_Michael_Kaufmann_Websocket_support_for_curl.mp4
 
 2. libcurl - multi interface
 
@@ -1152,6 +1162,13 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  to no impact, neither on the performance nor on the general functionality of
  curl.
 
+19.3 cmake test suite improvements
+
+ The cmake build doesn't support 'make show' so it doesn't know which tests
+ are in the makefile or not (making appveyor builds do many false warnings
+ about it) nor does it support running the test suite if building out-of-tree.
+
+ See https://github.com/curl/curl/issues/3109
 
 20. Test suite
 
