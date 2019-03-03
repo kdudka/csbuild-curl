@@ -48,6 +48,8 @@ struct helptxt {
 static const struct helptxt helptext[] = {
   {"    --abstract-unix-socket <path>",
    "Connect via abstract Unix domain socket"},
+  {"    --alt-svc <file name>",
+   "Enable alt-svc with this cache file"},
   {"    --anyauth",
    "Pick any authentication method"},
   {"-a, --append",
@@ -525,6 +527,7 @@ static const struct feat feats[] = {
   {"HTTPS-proxy",    CURL_VERSION_HTTPS_PROXY},
   {"MultiSSL",       CURL_VERSION_MULTI_SSL},
   {"PSL",            CURL_VERSION_PSL},
+  {"alt-svc",        CURL_VERSION_ALTSVC},
 };
 
 void tool_help(void)
