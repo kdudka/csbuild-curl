@@ -105,11 +105,11 @@
 #define DEFAULT_CONFIG "socksd.config"
 #endif
 
-const char *backendaddr = "127.0.0.1";
-unsigned short backendport = 0; /* default is use client's */
+static const char *backendaddr = "127.0.0.1";
+static unsigned short backendport = 0; /* default is use client's */
 
 struct configurable {
-  unsigned char version; /* inital version byte in the request must match
+  unsigned char version; /* initial version byte in the request must match
                             this */
   unsigned char nmethods_min; /* minimum number of nmethods to expect */
   unsigned char nmethods_max; /* maximum number of nmethods to expect */
@@ -133,10 +133,10 @@ struct configurable {
 #define CONFIG_ADDR backendaddr
 #define CONFIG_CONNECTREP 0
 
-struct configurable config;
+static struct configurable config;
 
 const char *serverlogfile = DEFAULT_LOGFILE;
-const char *configfile = DEFAULT_CONFIG;
+static const char *configfile = DEFAULT_CONFIG;
 
 #ifdef ENABLE_IPV6
 static bool use_ipv6 = FALSE;
@@ -623,7 +623,7 @@ static curl_socket_t sockit(curl_socket_t fd)
     len = 16;
     break;
   default:
-    logmsg("Unkown ATYP %d", type);
+    logmsg("Unknown ATYP %d", type);
     return CURL_SOCKET_BAD;
   }
   if(rc < (4 + len + 2)) {
