@@ -303,6 +303,14 @@ typedef enum {
   NTLMSTATE_LAST
 } curlntlm;
 
+typedef enum {
+  GSS_AUTHNONE,
+  GSS_AUTHRECV,
+  GSS_AUTHSENT,
+  GSS_AUTHDONE,
+  GSS_AUTHSUCC
+} curlnegotiate;
+
 #if defined(CURL_DOES_CONVERSIONS) && defined(HAVE_ICONV)
 #include <iconv.h>
 #endif
@@ -328,7 +336,6 @@ struct kerberos5data {
 /* Struct used for NTLM challenge-response authentication */
 #if defined(USE_NTLM)
 struct ntlmdata {
-  curlntlm state;
 #ifdef USE_WINDOWS_SSPI
 /* The sslContext is used for the Schannel bindings. The
  * api is available on the Windows 7 SDK and later.
@@ -354,13 +361,9 @@ struct ntlmdata {
 };
 #endif
 
+/* Struct used for Negotiate (SPNEGO) authentication */
 #ifdef USE_SPNEGO
 struct negotiatedata {
-  /* When doing Negotiate (SPNEGO) auth, we first need to send a token
-     and then validate the received one. */
-  enum {
-    GSS_AUTHNONE, GSS_AUTHRECV, GSS_AUTHSENT, GSS_AUTHDONE, GSS_AUTHSUCC
-  } state;
 #ifdef HAVE_GSSAPI
   OM_uint32 status;
   gss_ctx_id_t context;
@@ -962,6 +965,9 @@ struct connectdata {
 #endif
 
 #if defined(USE_NTLM)
+  curlntlm http_ntlm_state;
+  curlntlm proxy_ntlm_state;
+
   struct ntlmdata ntlm;     /* NTLM differs from other authentication schemes
                                because it authenticates connections, not
                                single requests! */
@@ -977,6 +983,9 @@ struct connectdata {
 #endif
 
 #ifdef USE_SPNEGO
+  curlnegotiate http_negotiate_state;
+  curlnegotiate proxy_negotiate_state;
+
   struct negotiatedata negotiate; /* state data for host Negotiate auth */
   struct negotiatedata proxyneg; /* state data for proxy Negotiate auth */
 #endif
