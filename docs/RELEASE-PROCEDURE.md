@@ -16,7 +16,7 @@ in the source code repo
 
 - run "./maketgz 7.34.0" to build the release tarballs. It is important that
   you run this on a machine with the correct set of autotools etc installed
-  as this is what then will be shipped and used by most users on *nix like
+  as this is what then will be shipped and used by most users on \*nix like
   systems.
 
 - push the git commits and the new tag
@@ -92,3 +92,7 @@ time of this writing):
 - February 27, 2020
 - April 22, 2020
 - June 17, 2020
+
+The above (and more) curl-related dates are published in
+[iCalendar format](https://calendar.google.com/calendar/ical/c9u5d64odop9js55oltfarjk6g%40group.calendar.google.com/public/basic.ics)
+as well.
