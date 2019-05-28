@@ -2027,7 +2027,7 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   }
   else {
     unsigned long port = strtoul(data->state.up.port, NULL, 10);
-    conn->remote_port = curlx_ultous(port);
+    conn->port = conn->remote_port = curlx_ultous(port);
   }
 
   (void)curl_url_get(uh, CURLUPART_QUERY, &data->state.up.query, 0);
@@ -2310,7 +2310,7 @@ static CURLcode parse_proxy(struct Curl_easy *data,
                             struct connectdata *conn, char *proxy,
                             curl_proxytype proxytype)
 {
-  char *portptr;
+  char *portptr = NULL;
   long port = -1;
   char *proxyuser = NULL;
   char *proxypasswd = NULL;
